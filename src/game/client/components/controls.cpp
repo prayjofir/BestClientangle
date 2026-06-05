@@ -5,7 +5,6 @@
 #include <base/math.h>
 #include <base/time.h>
 #include <base/vmath.h>
-#include <cstdlib>
 
 #include <engine/client.h>
 #include <engine/shared/config.h>
@@ -33,7 +32,6 @@ CControls::CControls()
 	std::fill(std::begin(m_aTargetPos), std::end(m_aTargetPos), vec2(0.0f, 0.0f));
 	std::fill(std::begin(m_aMouseInputType), std::end(m_aMouseInputType), EMouseInputType::ABSOLUTE);
 	std::fill(std::begin(m_aAimAngleActive), std::end(m_aAimAngleActive), false);
-	std::fill(std::begin(m_aSavedMousePos), std::end(m_aSavedMousePos), vec2(0.0f, 0.0f));
 	std::fill(std::begin(m_aAimAngleTarget), std::end(m_aAimAngleTarget), vec2(0.0f, 0.0f));
 }
 
@@ -132,12 +130,8 @@ void CControls::ConKeyAimAngle(IConsole::IResult *pResult, void *pUserData)
 
 	if(pResult->GetInteger(0)) // key pressed
 	{
-		// Calculate target position with optional jitter
-		float Jitter = 0.0f;
-		if(g_Config.m_BcAimAngleJitter > 0)
-			Jitter = ((float)(rand() % (g_Config.m_BcAimAngleJitter * 2 + 1)) - g_Config.m_BcAimAngleJitter);
-
-		const float AngleRad = ((float)g_Config.m_BcAimAngle + Jitter) / 256.0f;
+		// Calculate target position
+		const float AngleRad = (float)g_Config.m_BcAimAngle / 256.0f;
 		const float Distance = maximum(length(pControls->m_aMousePos[Dummy]), 100.0f);
 		// Store as target — OnRender will move towards it smoothly
 		pControls->m_aAimAngleTarget[Dummy].x = std::cos(AngleRad) * Distance;
