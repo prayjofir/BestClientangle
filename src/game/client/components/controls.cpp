@@ -363,7 +363,12 @@ int CControls::SnapInput(int *pData)
 		break;
 	}
 
-	// (hook suppression removed — hook works freely during aim movement)
+	// While aim is still moving: suppress hook AND direction (left/right) input
+	if(!m_aAimAngleTargetReached[g_Config.m_ClDummy] || !m_aAimAngle2TargetReached[g_Config.m_ClDummy])
+	{
+		m_aInputData[g_Config.m_ClDummy].m_Hook = 0;
+		m_aInputData[g_Config.m_ClDummy].m_Direction = 0;
+	}
 
 	// TClient
 	if(g_Config.m_TcHideChatBubbles && Client()->RconAuthed())
