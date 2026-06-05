@@ -54,6 +54,7 @@ public:
 	// Aim angle bind
 	bool m_aAimAngleActive[NUM_DUMMIES];
 	vec2 m_aSavedMousePos[NUM_DUMMIES];
+	vec2 m_aAimAngleTarget[NUM_DUMMIES]; // smooth movement destination
 
 	CControls();
 	int Sizeof() const override { return sizeof(*this); }

@@ -34,6 +34,7 @@ CControls::CControls()
 	std::fill(std::begin(m_aMouseInputType), std::end(m_aMouseInputType), EMouseInputType::ABSOLUTE);
 	std::fill(std::begin(m_aAimAngleActive), std::end(m_aAimAngleActive), false);
 	std::fill(std::begin(m_aSavedMousePos), std::end(m_aSavedMousePos), vec2(0.0f, 0.0f));
+	std::fill(std::begin(m_aAimAngleTarget), std::end(m_aAimAngleTarget), vec2(0.0f, 0.0f));
 }
 
 void CControls::OnReset()
@@ -131,27 +132,21 @@ void CControls::ConKeyAimAngle(IConsole::IResult *pResult, void *pUserData)
 
 	if(pResult->GetInteger(0)) // key pressed
 	{
-		if(!pControls->m_aAimAngleActive[Dummy])
-		{
-			pControls->m_aSavedMousePos[Dummy] = pControls->m_aMousePos[Dummy];
-			pControls->m_aAimAngleActive[Dummy] = true;
-		}
-		// Convert angle to mouse position vector (256-based unit, matching HUD debug display)
-		// Add random jitter to look more like human input
+		// Calculate target position with optional jitter
 		float Jitter = 0.0f;
 		if(g_Config.m_BcAimAngleJitter > 0)
-		{
-			// Random float in [-jitter, +jitter]
 			Jitter = ((float)(rand() % (g_Config.m_BcAimAngleJitter * 2 + 1)) - g_Config.m_BcAimAngleJitter);
-		}
+
 		const float AngleRad = ((float)g_Config.m_BcAimAngle + Jitter) / 256.0f;
 		const float Distance = maximum(length(pControls->m_aMousePos[Dummy]), 100.0f);
-		pControls->m_aMousePos[Dummy].x = std::cos(AngleRad) * Distance;
-		pControls->m_aMousePos[Dummy].y = std::sin(AngleRad) * Distance;
+		// Store as target — OnRender will move towards it smoothly
+		pControls->m_aAimAngleTarget[Dummy].x = std::cos(AngleRad) * Distance;
+		pControls->m_aAimAngleTarget[Dummy].y = std::sin(AngleRad) * Distance;
+		pControls->m_aAimAngleActive[Dummy] = true;
 	}
 	else // key released
 	{
-		// Don't restore old position - keep aim at the set angle
+		// Don't restore old position - keep aim at current position
 		pControls->m_aAimAngleActive[Dummy] = false;
 	}
 }
@@ -517,6 +512,22 @@ void CControls::OnRender()
 {
 	if(Client()->State() != IClient::STATE_ONLINE && Client()->State() != IClient::STATE_DEMOPLAYBACK)
 		return;
+
+	// Smooth aim angle: move mouse gradually towards target each frame
+	for(int Dummy = 0; Dummy < NUM_DUMMIES; Dummy++)
+	{
+		if(!m_aAimAngleActive[Dummy])
+			continue;
+
+		vec2 Diff = m_aAimAngleTarget[Dummy] - m_aMousePos[Dummy];
+		float Dist = length(Diff);
+		float Speed = (float)g_Config.m_BcAimAngleSpeed;
+
+		if(Dist <= Speed)
+			m_aMousePos[Dummy] = m_aAimAngleTarget[Dummy];
+		else
+			m_aMousePos[Dummy] += normalize(Diff) * Speed;
+	}
 
 	if(g_Config.m_ClAutoswitchWeaponsOutOfAmmo && !GameClient()->m_GameInfo.m_UnlimitedAmmo && GameClient()->m_Snap.m_pLocalCharacter)
 	{
