@@ -363,13 +363,6 @@ int CControls::SnapInput(int *pData)
 		break;
 	}
 
-	// While aim is still moving: suppress hook AND direction (left/right) input
-	if(!m_aAimAngleTargetReached[g_Config.m_ClDummy] || !m_aAimAngle2TargetReached[g_Config.m_ClDummy])
-	{
-		m_aInputData[g_Config.m_ClDummy].m_Hook = 0;
-		m_aInputData[g_Config.m_ClDummy].m_Direction = 0;
-	}
-
 	// TClient
 	if(g_Config.m_TcHideChatBubbles && Client()->RconAuthed())
 		for(auto &InputData : m_aInputData)
@@ -493,6 +486,13 @@ int CControls::SnapInput(int *pData)
 			m_aInputData[g_Config.m_ClDummy].m_WantedWeapon = ((int)t) % NUM_WEAPONS;
 			m_aInputData[g_Config.m_ClDummy].m_TargetX = (int)(std::sin(t * 3) * 100.0f);
 			m_aInputData[g_Config.m_ClDummy].m_TargetY = (int)(std::cos(t * 3) * 100.0f);
+		}
+
+		// While aim is still moving: suppress hook AND direction so player doesn't move into freeze
+		if(!m_aAimAngleTargetReached[g_Config.m_ClDummy] || !m_aAimAngle2TargetReached[g_Config.m_ClDummy])
+		{
+			m_aInputData[g_Config.m_ClDummy].m_Hook = 0;
+			m_aInputData[g_Config.m_ClDummy].m_Direction = 0;
 		}
 
 		// check if we need to send input
