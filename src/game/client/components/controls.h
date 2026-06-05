@@ -53,9 +53,11 @@ public:
 
 	// Aim angle bind (left side)
 	bool m_aAimAngleTargetReached[NUM_DUMMIES];
+	bool m_aAimAngleSettingPress[NUM_DUMMIES]; // true during the initial "set aim" keypress
 	vec2 m_aAimAngleTarget[NUM_DUMMIES];
 	// Aim angle bind (right side)
 	bool m_aAimAngle2TargetReached[NUM_DUMMIES];
+	bool m_aAimAngle2SettingPress[NUM_DUMMIES];
 	vec2 m_aAimAngle2Target[NUM_DUMMIES];
 
 	CControls();

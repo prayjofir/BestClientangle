@@ -32,8 +32,10 @@ CControls::CControls()
 	std::fill(std::begin(m_aTargetPos), std::end(m_aTargetPos), vec2(0.0f, 0.0f));
 	std::fill(std::begin(m_aMouseInputType), std::end(m_aMouseInputType), EMouseInputType::ABSOLUTE);
 	std::fill(std::begin(m_aAimAngleTargetReached), std::end(m_aAimAngleTargetReached), true);
+	std::fill(std::begin(m_aAimAngleSettingPress), std::end(m_aAimAngleSettingPress), false);
 	std::fill(std::begin(m_aAimAngleTarget), std::end(m_aAimAngleTarget), vec2(0.0f, 0.0f));
 	std::fill(std::begin(m_aAimAngle2TargetReached), std::end(m_aAimAngle2TargetReached), true);
+	std::fill(std::begin(m_aAimAngle2SettingPress), std::end(m_aAimAngle2SettingPress), false);
 	std::fill(std::begin(m_aAimAngle2Target), std::end(m_aAimAngle2Target), vec2(0.0f, 0.0f));
 }
 
@@ -129,17 +131,22 @@ void CControls::ConKeyAimAngle(IConsole::IResult *pResult, void *pUserData)
 {
 	CControls *pControls = (CControls *)pUserData;
 	const int Dummy = g_Config.m_ClDummy;
-	if(pResult->GetInteger(0))
+	if(pResult->GetInteger(0)) // key down
 	{
 		const float AngleRad = (float)g_Config.m_BcAimAngle / 256.0f;
 		const float Distance = maximum(length(pControls->m_aMousePos[Dummy]), 100.0f);
 		pControls->m_aAimAngleTarget[Dummy].x = std::cos(AngleRad) * Distance;
 		pControls->m_aAimAngleTarget[Dummy].y = std::sin(AngleRad) * Distance;
-		// Only start suppression if aim is actually far from target
-		// (subsequent presses when aim is already there won't block left/hook)
 		const float Dist = length(pControls->m_aAimAngleTarget[Dummy] - pControls->m_aMousePos[Dummy]);
-		if(Dist > 1.0f) // not already at target
+		if(Dist > 1.0f)
+		{
 			pControls->m_aAimAngleTargetReached[Dummy] = false;
+			pControls->m_aAimAngleSettingPress[Dummy] = true; // block entire keypress
+		}
+	}
+	else // key up
+	{
+		pControls->m_aAimAngleSettingPress[Dummy] = false; // release block
 	}
 }
 
@@ -155,7 +162,14 @@ void CControls::ConKeyAimAngle2(IConsole::IResult *pResult, void *pUserData)
 		pControls->m_aAimAngle2Target[Dummy].y = std::sin(AngleRad) * Distance;
 		const float Dist = length(pControls->m_aAimAngle2Target[Dummy] - pControls->m_aMousePos[Dummy]);
 		if(Dist > 1.0f)
+		{
 			pControls->m_aAimAngle2TargetReached[Dummy] = false;
+			pControls->m_aAimAngle2SettingPress[Dummy] = true;
+		}
+	}
+	else
+	{
+		pControls->m_aAimAngle2SettingPress[Dummy] = false;
 	}
 }
 
@@ -494,8 +508,9 @@ int CControls::SnapInput(int *pData)
 			m_aInputData[g_Config.m_ClDummy].m_TargetY = (int)(std::cos(t * 3) * 100.0f);
 		}
 
-		// While aim is still moving: suppress hook AND direction so player doesn't move into freeze
-		if(!m_aAimAngleTargetReached[g_Config.m_ClDummy] || !m_aAimAngle2TargetReached[g_Config.m_ClDummy])
+		// While this is a "setting" press (aim was far when key went down): suppress hook+direction
+		// until key is released, even if aim has arrived at target
+		if(m_aAimAngleSettingPress[g_Config.m_ClDummy] || m_aAimAngle2SettingPress[g_Config.m_ClDummy])
 		{
 			m_aInputData[g_Config.m_ClDummy].m_Hook = 0;
 			m_aInputData[g_Config.m_ClDummy].m_Direction = 0;
