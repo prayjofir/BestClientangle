@@ -53,7 +53,6 @@ public:
 
 	// Aim angle bind
 	bool m_aAimAngleTargetReached[NUM_DUMMIES]; // false while aim is still moving
-	bool m_aAimAnglePendingHook[NUM_DUMMIES];   // true after key press, fires hook once on arrival
 	vec2 m_aAimAngleTarget[NUM_DUMMIES];        // smooth movement destination
 
 	CControls();

@@ -32,7 +32,6 @@ CControls::CControls()
 	std::fill(std::begin(m_aTargetPos), std::end(m_aTargetPos), vec2(0.0f, 0.0f));
 	std::fill(std::begin(m_aMouseInputType), std::end(m_aMouseInputType), EMouseInputType::ABSOLUTE);
 	std::fill(std::begin(m_aAimAngleTargetReached), std::end(m_aAimAngleTargetReached), true);
-	std::fill(std::begin(m_aAimAnglePendingHook), std::end(m_aAimAnglePendingHook), false);
 	std::fill(std::begin(m_aAimAngleTarget), std::end(m_aAimAngleTarget), vec2(0.0f, 0.0f));
 }
 
@@ -131,15 +130,13 @@ void CControls::ConKeyAimAngle(IConsole::IResult *pResult, void *pUserData)
 
 	if(pResult->GetInteger(0)) // key pressed
 	{
-		// float32 cos/sin — empirically gives correct HUD angle display
 		const float AngleRad = (float)g_Config.m_BcAimAngle / 256.0f;
 		const float Distance = maximum(length(pControls->m_aMousePos[Dummy]), 100.0f);
 		pControls->m_aAimAngleTarget[Dummy].x = std::cos(AngleRad) * Distance;
 		pControls->m_aAimAngleTarget[Dummy].y = std::sin(AngleRad) * Distance;
 		pControls->m_aAimAngleTargetReached[Dummy] = false;
-		pControls->m_aAimAnglePendingHook[Dummy] = true; // will auto-fire hook on arrival
 	}
-	// key release: do nothing — pendingHook stays until hook fires on arrival
+	// key release: nothing to do
 }
 
 void CControls::OnConsoleInit()
@@ -351,17 +348,9 @@ int CControls::SnapInput(int *pData)
 		break;
 	}
 
-	// Block hook while aim is moving; auto-fire once when aim arrives
-	if(m_aAimAnglePendingHook[g_Config.m_ClDummy])
-	{
-		if(!m_aAimAngleTargetReached[g_Config.m_ClDummy])
-			m_aInputData[g_Config.m_ClDummy].m_Hook = 0; // still moving — suppress
-		else
-		{
-			m_aInputData[g_Config.m_ClDummy].m_Hook = 1; // arrived — fire hook!
-			m_aAimAnglePendingHook[g_Config.m_ClDummy] = false;
-		}
-	}
+	// Suppress hook while aim is still moving to target
+	if(!m_aAimAngleTargetReached[g_Config.m_ClDummy])
+		m_aInputData[g_Config.m_ClDummy].m_Hook = 0;
 
 	// TClient
 	if(g_Config.m_TcHideChatBubbles && Client()->RconAuthed())
