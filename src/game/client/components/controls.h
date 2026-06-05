@@ -52,9 +52,9 @@ public:
 	int m_aSnapTapPrevRight[NUM_DUMMIES];
 
 	// Aim angle bind
-	bool m_aAimAngleActive[NUM_DUMMIES];
-	bool m_aAimAngleTargetReached[NUM_DUMMIES]; // true when aim has fully arrived at target
-	vec2 m_aAimAngleTarget[NUM_DUMMIES]; // smooth movement destination
+	bool m_aAimAngleTargetReached[NUM_DUMMIES]; // false while aim is still moving
+	bool m_aAimAnglePendingHook[NUM_DUMMIES];   // true after key press, fires hook once on arrival
+	vec2 m_aAimAngleTarget[NUM_DUMMIES];        // smooth movement destination
 
 	CControls();
 	int Sizeof() const override { return sizeof(*this); }

@@ -31,8 +31,8 @@ CControls::CControls()
 	std::fill(std::begin(m_aMousePosOnAction), std::end(m_aMousePosOnAction), vec2(0.0f, 0.0f));
 	std::fill(std::begin(m_aTargetPos), std::end(m_aTargetPos), vec2(0.0f, 0.0f));
 	std::fill(std::begin(m_aMouseInputType), std::end(m_aMouseInputType), EMouseInputType::ABSOLUTE);
-	std::fill(std::begin(m_aAimAngleActive), std::end(m_aAimAngleActive), false);
 	std::fill(std::begin(m_aAimAngleTargetReached), std::end(m_aAimAngleTargetReached), true);
+	std::fill(std::begin(m_aAimAnglePendingHook), std::end(m_aAimAnglePendingHook), false);
 	std::fill(std::begin(m_aAimAngleTarget), std::end(m_aAimAngleTarget), vec2(0.0f, 0.0f));
 }
 
@@ -131,22 +131,15 @@ void CControls::ConKeyAimAngle(IConsole::IResult *pResult, void *pUserData)
 
 	if(pResult->GetInteger(0)) // key pressed
 	{
-		// Use double precision + tiny bias so (int)(atan2(y,x)*256) gives exact integer
-		// Without bias: result is e.g. -213.997 which truncates to -213 instead of -214
-		const double AngleRad = (double)g_Config.m_BcAimAngle / 256.0;
-		const double BiasedRad = AngleRad + std::copysign(0.002 / 256.0, AngleRad);
+		// float32 cos/sin — empirically gives correct HUD angle display
+		const float AngleRad = (float)g_Config.m_BcAimAngle / 256.0f;
 		const float Distance = maximum(length(pControls->m_aMousePos[Dummy]), 100.0f);
-		// Store as target — OnRender will move towards it smoothly
-		pControls->m_aAimAngleTarget[Dummy].x = (float)(std::cos(BiasedRad) * Distance);
-		pControls->m_aAimAngleTarget[Dummy].y = (float)(std::sin(BiasedRad) * Distance);
+		pControls->m_aAimAngleTarget[Dummy].x = std::cos(AngleRad) * Distance;
+		pControls->m_aAimAngleTarget[Dummy].y = std::sin(AngleRad) * Distance;
 		pControls->m_aAimAngleTargetReached[Dummy] = false;
-		pControls->m_aAimAngleActive[Dummy] = true;
+		pControls->m_aAimAnglePendingHook[Dummy] = true; // will auto-fire hook on arrival
 	}
-	else // key released
-	{
-		// Don't restore old position - keep aim at current position
-		pControls->m_aAimAngleActive[Dummy] = false;
-	}
+	// key release: do nothing — pendingHook stays until hook fires on arrival
 }
 
 void CControls::OnConsoleInit()
@@ -358,9 +351,17 @@ int CControls::SnapInput(int *pData)
 		break;
 	}
 
-	// Block hook until aim has fully reached its target angle
-	if(m_aAimAngleActive[g_Config.m_ClDummy] && !m_aAimAngleTargetReached[g_Config.m_ClDummy])
-		m_aInputData[g_Config.m_ClDummy].m_Hook = 0;
+	// Block hook while aim is moving; auto-fire once when aim arrives
+	if(m_aAimAnglePendingHook[g_Config.m_ClDummy])
+	{
+		if(!m_aAimAngleTargetReached[g_Config.m_ClDummy])
+			m_aInputData[g_Config.m_ClDummy].m_Hook = 0; // still moving — suppress
+		else
+		{
+			m_aInputData[g_Config.m_ClDummy].m_Hook = 1; // arrived — fire hook!
+			m_aAimAnglePendingHook[g_Config.m_ClDummy] = false;
+		}
+	}
 
 	// TClient
 	if(g_Config.m_TcHideChatBubbles && Client()->RconAuthed())
@@ -518,7 +519,7 @@ void CControls::OnRender()
 	// Smooth aim angle: move mouse gradually towards target each frame
 	for(int Dummy = 0; Dummy < NUM_DUMMIES; Dummy++)
 	{
-		if(!m_aAimAngleActive[Dummy])
+		if(m_aAimAngleTargetReached[Dummy])
 			continue;
 
 		vec2 Diff = m_aAimAngleTarget[Dummy] - m_aMousePos[Dummy];
@@ -528,14 +529,10 @@ void CControls::OnRender()
 		if(Dist <= Speed)
 		{
 			m_aMousePos[Dummy] = m_aAimAngleTarget[Dummy];
-			m_aAimAngleTargetReached[Dummy] = true; // aim arrived, allow hook
+			m_aAimAngleTargetReached[Dummy] = true;
 		}
 		else
-		{
 			m_aMousePos[Dummy] += normalize(Diff) * Speed;
-			// Also clear hook in input data every frame while still moving
-			m_aInputData[Dummy].m_Hook = 0;
-		}
 	}
 
 	if(g_Config.m_ClAutoswitchWeaponsOutOfAmmo && !GameClient()->m_GameInfo.m_UnlimitedAmmo && GameClient()->m_Snap.m_pLocalCharacter)
@@ -584,8 +581,8 @@ bool CControls::OnCursorMove(float x, float y, IInput::ECursorType CursorType)
 	if(GameClient()->m_Snap.m_pGameInfoObj && (GameClient()->m_Snap.m_pGameInfoObj->m_GameStateFlags & GAMESTATEFLAG_PAUSED))
 		return false;
 
-	// Aim angle active: block mouse movement
-	if(m_aAimAngleActive[g_Config.m_ClDummy])
+	// Block mouse movement while aim is still moving to target
+	if(!m_aAimAngleTargetReached[g_Config.m_ClDummy])
 		return true;
 
 	if(CursorType == IInput::CURSOR_JOYSTICK && g_Config.m_InpControllerAbsolute && GameClient()->m_Snap.m_pGameInfoObj && !GameClient()->m_Snap.m_SpecInfo.m_Active)
