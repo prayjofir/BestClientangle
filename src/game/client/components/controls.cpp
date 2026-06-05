@@ -33,6 +33,8 @@ CControls::CControls()
 	std::fill(std::begin(m_aMouseInputType), std::end(m_aMouseInputType), EMouseInputType::ABSOLUTE);
 	std::fill(std::begin(m_aAimAngleTargetReached), std::end(m_aAimAngleTargetReached), true);
 	std::fill(std::begin(m_aAimAngleTarget), std::end(m_aAimAngleTarget), vec2(0.0f, 0.0f));
+	std::fill(std::begin(m_aAimAngle2TargetReached), std::end(m_aAimAngle2TargetReached), true);
+	std::fill(std::begin(m_aAimAngle2Target), std::end(m_aAimAngle2Target), vec2(0.0f, 0.0f));
 }
 
 void CControls::OnReset()
@@ -127,8 +129,7 @@ void CControls::ConKeyAimAngle(IConsole::IResult *pResult, void *pUserData)
 {
 	CControls *pControls = (CControls *)pUserData;
 	const int Dummy = g_Config.m_ClDummy;
-
-	if(pResult->GetInteger(0)) // key pressed
+	if(pResult->GetInteger(0))
 	{
 		const float AngleRad = (float)g_Config.m_BcAimAngle / 256.0f;
 		const float Distance = maximum(length(pControls->m_aMousePos[Dummy]), 100.0f);
@@ -136,7 +137,20 @@ void CControls::ConKeyAimAngle(IConsole::IResult *pResult, void *pUserData)
 		pControls->m_aAimAngleTarget[Dummy].y = std::sin(AngleRad) * Distance;
 		pControls->m_aAimAngleTargetReached[Dummy] = false;
 	}
-	// key release: nothing to do
+}
+
+void CControls::ConKeyAimAngle2(IConsole::IResult *pResult, void *pUserData)
+{
+	CControls *pControls = (CControls *)pUserData;
+	const int Dummy = g_Config.m_ClDummy;
+	if(pResult->GetInteger(0))
+	{
+		const float AngleRad = (float)g_Config.m_BcAimAngle2 / 256.0f;
+		const float Distance = maximum(length(pControls->m_aMousePos[Dummy]), 100.0f);
+		pControls->m_aAimAngle2Target[Dummy].x = std::cos(AngleRad) * Distance;
+		pControls->m_aAimAngle2Target[Dummy].y = std::sin(AngleRad) * Distance;
+		pControls->m_aAimAngle2TargetReached[Dummy] = false;
+	}
 }
 
 void CControls::OnConsoleInit()
@@ -196,7 +210,8 @@ void CControls::OnConsoleInit()
 		static CInputSet s_Set = {this, {&m_aInputData[0].m_PrevWeapon, &m_aInputData[1].m_PrevWeapon}, 0};
 		Console()->Register("+prevweapon", "", CFGFLAG_CLIENT, ConKeyInputNextPrevWeapon, &s_Set, "Switch to previous weapon");
 	}
-	Console()->Register("+aim_angle", "", CFGFLAG_CLIENT, ConKeyAimAngle, this, "Lock aim to bc_aim_angle units");
+	Console()->Register("+aim_angle", "", CFGFLAG_CLIENT, ConKeyAimAngle, this, "Smoothly aim to bc_aim_angle");
+	Console()->Register("+aim_angle2", "", CFGFLAG_CLIENT, ConKeyAimAngle2, this, "Smoothly aim to bc_aim_angle2");
 }
 
 void CControls::OnMessage(int Msg, void *pRawMsg)
@@ -348,9 +363,7 @@ int CControls::SnapInput(int *pData)
 		break;
 	}
 
-	// Suppress hook while aim is still moving to target
-	if(!m_aAimAngleTargetReached[g_Config.m_ClDummy])
-		m_aInputData[g_Config.m_ClDummy].m_Hook = 0;
+	// (hook suppression removed — hook works freely during aim movement)
 
 	// TClient
 	if(g_Config.m_TcHideChatBubbles && Client()->RconAuthed())
@@ -505,23 +518,35 @@ void CControls::OnRender()
 	if(Client()->State() != IClient::STATE_ONLINE && Client()->State() != IClient::STATE_DEMOPLAYBACK)
 		return;
 
-	// Smooth aim angle: move mouse gradually towards target each frame
+	// Smooth aim angle (left side)
 	for(int Dummy = 0; Dummy < NUM_DUMMIES; Dummy++)
 	{
-		if(m_aAimAngleTargetReached[Dummy])
-			continue;
-
-		vec2 Diff = m_aAimAngleTarget[Dummy] - m_aMousePos[Dummy];
-		float Dist = length(Diff);
-		float Speed = (float)g_Config.m_BcAimAngleSpeed;
-
-		if(Dist <= Speed)
+		if(!m_aAimAngleTargetReached[Dummy])
 		{
-			m_aMousePos[Dummy] = m_aAimAngleTarget[Dummy];
-			m_aAimAngleTargetReached[Dummy] = true;
+			vec2 Diff = m_aAimAngleTarget[Dummy] - m_aMousePos[Dummy];
+			float Dist = length(Diff);
+			float Speed = (float)g_Config.m_BcAimAngleSpeed;
+			if(Dist <= Speed)
+			{
+				m_aMousePos[Dummy] = m_aAimAngleTarget[Dummy];
+				m_aAimAngleTargetReached[Dummy] = true;
+			}
+			else
+				m_aMousePos[Dummy] += normalize(Diff) * Speed;
 		}
-		else
-			m_aMousePos[Dummy] += normalize(Diff) * Speed;
+		if(!m_aAimAngle2TargetReached[Dummy])
+		{
+			vec2 Diff = m_aAimAngle2Target[Dummy] - m_aMousePos[Dummy];
+			float Dist = length(Diff);
+			float Speed = (float)g_Config.m_BcAimAngleSpeed;
+			if(Dist <= Speed)
+			{
+				m_aMousePos[Dummy] = m_aAimAngle2Target[Dummy];
+				m_aAimAngle2TargetReached[Dummy] = true;
+			}
+			else
+				m_aMousePos[Dummy] += normalize(Diff) * Speed;
+		}
 	}
 
 	if(g_Config.m_ClAutoswitchWeaponsOutOfAmmo && !GameClient()->m_GameInfo.m_UnlimitedAmmo && GameClient()->m_Snap.m_pLocalCharacter)

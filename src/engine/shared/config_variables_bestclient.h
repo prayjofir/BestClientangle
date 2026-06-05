@@ -328,5 +328,6 @@ MACRO_CONFIG_INT(Bc3dParticlesGlowAlpha, bc_3d_particles_glow_alpha, 35, 1, 100,
 MACRO_CONFIG_INT(Bc3dParticlesGlowOffset, bc_3d_particles_glow_offset, 2, 1, 20, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Glow offset for 3D particles")
 
 // Aim angle bind
-MACRO_CONFIG_INT(BcAimAngle, bc_aim_angle, 0, -1024, 1024, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Fixed aim angle for +aim_angle bind (same unit as debug HUD Angle field; 256 = full circle)")
+MACRO_CONFIG_INT(BcAimAngle, bc_aim_angle, 0, -1024, 1024, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Fixed aim angle for +aim_angle bind (256 = full circle, same unit as debug HUD Angle)")
+MACRO_CONFIG_INT(BcAimAngle2, bc_aim_angle2, 0, -1024, 1024, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Fixed aim angle for +aim_angle2 bind (right side)")
 MACRO_CONFIG_INT(BcAimAngleSpeed, bc_aim_angle_speed, 25, 1, 1000, CFGFLAG_CLIENT | CFGFLAG_SAVE, "How fast aim moves to target angle in mouse units per frame (lower = slower/smoother)")

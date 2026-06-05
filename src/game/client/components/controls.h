@@ -51,9 +51,12 @@ public:
 	int m_aSnapTapPrevLeft[NUM_DUMMIES];
 	int m_aSnapTapPrevRight[NUM_DUMMIES];
 
-	// Aim angle bind
-	bool m_aAimAngleTargetReached[NUM_DUMMIES]; // false while aim is still moving
-	vec2 m_aAimAngleTarget[NUM_DUMMIES];        // smooth movement destination
+	// Aim angle bind (left side)
+	bool m_aAimAngleTargetReached[NUM_DUMMIES];
+	vec2 m_aAimAngleTarget[NUM_DUMMIES];
+	// Aim angle bind (right side)
+	bool m_aAimAngle2TargetReached[NUM_DUMMIES];
+	vec2 m_aAimAngle2Target[NUM_DUMMIES];
 
 	CControls();
 	int Sizeof() const override { return sizeof(*this); }
@@ -82,5 +85,6 @@ public:
 	static void ConKeyInputSet(IConsole::IResult *pResult, void *pUserData);
 	static void ConKeyInputNextPrevWeapon(IConsole::IResult *pResult, void *pUserData);
 	static void ConKeyAimAngle(IConsole::IResult *pResult, void *pUserData);
+	static void ConKeyAimAngle2(IConsole::IResult *pResult, void *pUserData);
 };
 #endif
