@@ -143,11 +143,8 @@ void CControls::ConKeyAimAngle(IConsole::IResult *pResult, void *pUserData)
 	}
 	else // key released
 	{
-		if(pControls->m_aAimAngleActive[Dummy])
-		{
-			pControls->m_aAimAngleActive[Dummy] = false;
-			pControls->m_aMousePos[Dummy] = pControls->m_aSavedMousePos[Dummy];
-		}
+		// Don't restore old position - keep aim at the set angle
+		pControls->m_aAimAngleActive[Dummy] = false;
 	}
 }
 
