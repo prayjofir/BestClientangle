@@ -135,8 +135,8 @@ void CControls::ConKeyAimAngle(IConsole::IResult *pResult, void *pUserData)
 			pControls->m_aSavedMousePos[Dummy] = pControls->m_aMousePos[Dummy];
 			pControls->m_aAimAngleActive[Dummy] = true;
 		}
-		// Convert angle degrees to mouse position vector
-		const float AngleRad = (float)g_Config.m_BcAimAngle * (pi / 180.0f);
+		// Convert angle to mouse position vector (256-based unit, matching HUD debug display)
+		const float AngleRad = (float)g_Config.m_BcAimAngle / 256.0f;
 		const float Distance = maximum(length(pControls->m_aMousePos[Dummy]), 100.0f);
 		pControls->m_aMousePos[Dummy].x = std::cos(AngleRad) * Distance;
 		pControls->m_aMousePos[Dummy].y = std::sin(AngleRad) * Distance;
@@ -208,7 +208,7 @@ void CControls::OnConsoleInit()
 		static CInputSet s_Set = {this, {&m_aInputData[0].m_PrevWeapon, &m_aInputData[1].m_PrevWeapon}, 0};
 		Console()->Register("+prevweapon", "", CFGFLAG_CLIENT, ConKeyInputNextPrevWeapon, &s_Set, "Switch to previous weapon");
 	}
-	Console()->Register("+aim_angle", "", CFGFLAG_CLIENT, ConKeyAimAngle, this, "Lock aim to bc_aim_angle degrees");
+	Console()->Register("+aim_angle", "", CFGFLAG_CLIENT, ConKeyAimAngle, this, "Lock aim to bc_aim_angle units");
 }
 
 void CControls::OnMessage(int Msg, void *pRawMsg)

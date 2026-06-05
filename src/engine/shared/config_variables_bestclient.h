@@ -328,4 +328,4 @@ MACRO_CONFIG_INT(Bc3dParticlesGlowAlpha, bc_3d_particles_glow_alpha, 35, 1, 100,
 MACRO_CONFIG_INT(Bc3dParticlesGlowOffset, bc_3d_particles_glow_offset, 2, 1, 20, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Glow offset for 3D particles")
 
 // Aim angle bind
-MACRO_CONFIG_INT(BcAimAngle, bc_aim_angle, 0, -360, 360, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Fixed aim angle in degrees for the +aim_angle bind")
+MACRO_CONFIG_INT(BcAimAngle, bc_aim_angle, 0, -1024, 1024, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Fixed aim angle for +aim_angle bind (same unit as debug HUD Angle field; 256 = full circle)")
