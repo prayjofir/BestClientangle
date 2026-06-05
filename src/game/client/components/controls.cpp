@@ -5,6 +5,7 @@
 #include <base/math.h>
 #include <base/time.h>
 #include <base/vmath.h>
+#include <cstdlib>
 
 #include <engine/client.h>
 #include <engine/shared/config.h>
@@ -136,7 +137,14 @@ void CControls::ConKeyAimAngle(IConsole::IResult *pResult, void *pUserData)
 			pControls->m_aAimAngleActive[Dummy] = true;
 		}
 		// Convert angle to mouse position vector (256-based unit, matching HUD debug display)
-		const float AngleRad = (float)g_Config.m_BcAimAngle / 256.0f;
+		// Add random jitter to look more like human input
+		float Jitter = 0.0f;
+		if(g_Config.m_BcAimAngleJitter > 0)
+		{
+			// Random float in [-jitter, +jitter]
+			Jitter = ((float)(rand() % (g_Config.m_BcAimAngleJitter * 2 + 1)) - g_Config.m_BcAimAngleJitter);
+		}
+		const float AngleRad = ((float)g_Config.m_BcAimAngle + Jitter) / 256.0f;
 		const float Distance = maximum(length(pControls->m_aMousePos[Dummy]), 100.0f);
 		pControls->m_aMousePos[Dummy].x = std::cos(AngleRad) * Distance;
 		pControls->m_aMousePos[Dummy].y = std::sin(AngleRad) * Distance;
