@@ -32,6 +32,7 @@ CControls::CControls()
 	std::fill(std::begin(m_aTargetPos), std::end(m_aTargetPos), vec2(0.0f, 0.0f));
 	std::fill(std::begin(m_aMouseInputType), std::end(m_aMouseInputType), EMouseInputType::ABSOLUTE);
 	std::fill(std::begin(m_aAimAngleActive), std::end(m_aAimAngleActive), false);
+	std::fill(std::begin(m_aAimAngleTargetReached), std::end(m_aAimAngleTargetReached), true);
 	std::fill(std::begin(m_aAimAngleTarget), std::end(m_aAimAngleTarget), vec2(0.0f, 0.0f));
 }
 
@@ -130,12 +131,13 @@ void CControls::ConKeyAimAngle(IConsole::IResult *pResult, void *pUserData)
 
 	if(pResult->GetInteger(0)) // key pressed
 	{
-		// Calculate target position
-		const float AngleRad = (float)g_Config.m_BcAimAngle / 256.0f;
+		// Use double precision to avoid float rounding errors (fixes -213 vs -214)
+		const double AngleRad = (double)g_Config.m_BcAimAngle / 256.0;
 		const float Distance = maximum(length(pControls->m_aMousePos[Dummy]), 100.0f);
 		// Store as target — OnRender will move towards it smoothly
-		pControls->m_aAimAngleTarget[Dummy].x = std::cos(AngleRad) * Distance;
-		pControls->m_aAimAngleTarget[Dummy].y = std::sin(AngleRad) * Distance;
+		pControls->m_aAimAngleTarget[Dummy].x = (float)(std::cos(AngleRad) * Distance);
+		pControls->m_aAimAngleTarget[Dummy].y = (float)(std::sin(AngleRad) * Distance);
+		pControls->m_aAimAngleTargetReached[Dummy] = false; // reset: aim not at target yet
 		pControls->m_aAimAngleActive[Dummy] = true;
 	}
 	else // key released
@@ -354,6 +356,10 @@ int CControls::SnapInput(int *pData)
 		break;
 	}
 
+	// Block hook until aim has fully reached its target angle
+	if(m_aAimAngleActive[g_Config.m_ClDummy] && !m_aAimAngleTargetReached[g_Config.m_ClDummy])
+		m_aInputData[g_Config.m_ClDummy].m_Hook = 0;
+
 	// TClient
 	if(g_Config.m_TcHideChatBubbles && Client()->RconAuthed())
 		for(auto &InputData : m_aInputData)
@@ -518,7 +524,10 @@ void CControls::OnRender()
 		float Speed = (float)g_Config.m_BcAimAngleSpeed;
 
 		if(Dist <= Speed)
+		{
 			m_aMousePos[Dummy] = m_aAimAngleTarget[Dummy];
+			m_aAimAngleTargetReached[Dummy] = true; // aim arrived, allow hook
+		}
 		else
 			m_aMousePos[Dummy] += normalize(Diff) * Speed;
 	}
