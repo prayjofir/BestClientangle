@@ -51,6 +51,10 @@ public:
 	int m_aSnapTapPrevLeft[NUM_DUMMIES];
 	int m_aSnapTapPrevRight[NUM_DUMMIES];
 
+	// Aim angle bind
+	bool m_aAimAngleActive[NUM_DUMMIES];
+	vec2 m_aSavedMousePos[NUM_DUMMIES];
+
 	CControls();
 	int Sizeof() const override { return sizeof(*this); }
 
@@ -77,5 +81,6 @@ public:
 	static void ConKeyInputCounter(IConsole::IResult *pResult, void *pUserData);
 	static void ConKeyInputSet(IConsole::IResult *pResult, void *pUserData);
 	static void ConKeyInputNextPrevWeapon(IConsole::IResult *pResult, void *pUserData);
+	static void ConKeyAimAngle(IConsole::IResult *pResult, void *pUserData);
 };
 #endif

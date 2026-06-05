@@ -31,6 +31,8 @@ CControls::CControls()
 	std::fill(std::begin(m_aMousePosOnAction), std::end(m_aMousePosOnAction), vec2(0.0f, 0.0f));
 	std::fill(std::begin(m_aTargetPos), std::end(m_aTargetPos), vec2(0.0f, 0.0f));
 	std::fill(std::begin(m_aMouseInputType), std::end(m_aMouseInputType), EMouseInputType::ABSOLUTE);
+	std::fill(std::begin(m_aAimAngleActive), std::end(m_aAimAngleActive), false);
+	std::fill(std::begin(m_aSavedMousePos), std::end(m_aSavedMousePos), vec2(0.0f, 0.0f));
 }
 
 void CControls::OnReset()
@@ -121,6 +123,34 @@ void CControls::ConKeyInputNextPrevWeapon(IConsole::IResult *pResult, void *pUse
 	pSet->m_pControls->m_aInputData[g_Config.m_ClDummy].m_WantedWeapon = 0;
 }
 
+void CControls::ConKeyAimAngle(IConsole::IResult *pResult, void *pUserData)
+{
+	CControls *pControls = (CControls *)pUserData;
+	const int Dummy = g_Config.m_ClDummy;
+
+	if(pResult->GetInteger(0)) // key pressed
+	{
+		if(!pControls->m_aAimAngleActive[Dummy])
+		{
+			pControls->m_aSavedMousePos[Dummy] = pControls->m_aMousePos[Dummy];
+			pControls->m_aAimAngleActive[Dummy] = true;
+		}
+		// Convert angle degrees to mouse position vector
+		const float AngleRad = (float)g_Config.m_BcAimAngle * (pi / 180.0f);
+		const float Distance = maximum(length(pControls->m_aMousePos[Dummy]), 100.0f);
+		pControls->m_aMousePos[Dummy].x = std::cos(AngleRad) * Distance;
+		pControls->m_aMousePos[Dummy].y = std::sin(AngleRad) * Distance;
+	}
+	else // key released
+	{
+		if(pControls->m_aAimAngleActive[Dummy])
+		{
+			pControls->m_aAimAngleActive[Dummy] = false;
+			pControls->m_aMousePos[Dummy] = pControls->m_aSavedMousePos[Dummy];
+		}
+	}
+}
+
 void CControls::OnConsoleInit()
 {
 	// game commands
@@ -178,6 +208,7 @@ void CControls::OnConsoleInit()
 		static CInputSet s_Set = {this, {&m_aInputData[0].m_PrevWeapon, &m_aInputData[1].m_PrevWeapon}, 0};
 		Console()->Register("+prevweapon", "", CFGFLAG_CLIENT, ConKeyInputNextPrevWeapon, &s_Set, "Switch to previous weapon");
 	}
+	Console()->Register("+aim_angle", "", CFGFLAG_CLIENT, ConKeyAimAngle, this, "Lock aim to bc_aim_angle degrees");
 }
 
 void CControls::OnMessage(int Msg, void *pRawMsg)
@@ -527,6 +558,10 @@ bool CControls::OnCursorMove(float x, float y, IInput::ECursorType CursorType)
 {
 	if(GameClient()->m_Snap.m_pGameInfoObj && (GameClient()->m_Snap.m_pGameInfoObj->m_GameStateFlags & GAMESTATEFLAG_PAUSED))
 		return false;
+
+	// Aim angle active: block mouse movement
+	if(m_aAimAngleActive[g_Config.m_ClDummy])
+		return true;
 
 	if(CursorType == IInput::CURSOR_JOYSTICK && g_Config.m_InpControllerAbsolute && GameClient()->m_Snap.m_pGameInfoObj && !GameClient()->m_Snap.m_SpecInfo.m_Active)
 	{
