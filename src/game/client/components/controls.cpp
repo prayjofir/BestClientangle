@@ -138,7 +138,7 @@ void CControls::ConKeyAimAngle(IConsole::IResult *pResult, void *pUserData)
 		// Only start suppression if aim is actually far from target
 		// (subsequent presses when aim is already there won't block left/hook)
 		const float Dist = length(pControls->m_aAimAngleTarget[Dummy] - pControls->m_aMousePos[Dummy]);
-		if(Dist > (float)g_Config.m_BcAimAngleSpeed)
+		if(Dist > 1.0f) // not already at target
 			pControls->m_aAimAngleTargetReached[Dummy] = false;
 	}
 }
@@ -154,7 +154,7 @@ void CControls::ConKeyAimAngle2(IConsole::IResult *pResult, void *pUserData)
 		pControls->m_aAimAngle2Target[Dummy].x = std::cos(AngleRad) * Distance;
 		pControls->m_aAimAngle2Target[Dummy].y = std::sin(AngleRad) * Distance;
 		const float Dist = length(pControls->m_aAimAngle2Target[Dummy] - pControls->m_aMousePos[Dummy]);
-		if(Dist > (float)g_Config.m_BcAimAngleSpeed)
+		if(Dist > 1.0f)
 			pControls->m_aAimAngle2TargetReached[Dummy] = false;
 	}
 }
