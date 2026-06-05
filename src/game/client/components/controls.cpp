@@ -131,13 +131,15 @@ void CControls::ConKeyAimAngle(IConsole::IResult *pResult, void *pUserData)
 
 	if(pResult->GetInteger(0)) // key pressed
 	{
-		// Use double precision to avoid float rounding errors (fixes -213 vs -214)
+		// Use double precision + tiny bias so (int)(atan2(y,x)*256) gives exact integer
+		// Without bias: result is e.g. -213.997 which truncates to -213 instead of -214
 		const double AngleRad = (double)g_Config.m_BcAimAngle / 256.0;
+		const double BiasedRad = AngleRad + std::copysign(0.002 / 256.0, AngleRad);
 		const float Distance = maximum(length(pControls->m_aMousePos[Dummy]), 100.0f);
 		// Store as target — OnRender will move towards it smoothly
-		pControls->m_aAimAngleTarget[Dummy].x = (float)(std::cos(AngleRad) * Distance);
-		pControls->m_aAimAngleTarget[Dummy].y = (float)(std::sin(AngleRad) * Distance);
-		pControls->m_aAimAngleTargetReached[Dummy] = false; // reset: aim not at target yet
+		pControls->m_aAimAngleTarget[Dummy].x = (float)(std::cos(BiasedRad) * Distance);
+		pControls->m_aAimAngleTarget[Dummy].y = (float)(std::sin(BiasedRad) * Distance);
+		pControls->m_aAimAngleTargetReached[Dummy] = false;
 		pControls->m_aAimAngleActive[Dummy] = true;
 	}
 	else // key released
@@ -529,7 +531,11 @@ void CControls::OnRender()
 			m_aAimAngleTargetReached[Dummy] = true; // aim arrived, allow hook
 		}
 		else
+		{
 			m_aMousePos[Dummy] += normalize(Diff) * Speed;
+			// Also clear hook in input data every frame while still moving
+			m_aInputData[Dummy].m_Hook = 0;
+		}
 	}
 
 	if(g_Config.m_ClAutoswitchWeaponsOutOfAmmo && !GameClient()->m_GameInfo.m_UnlimitedAmmo && GameClient()->m_Snap.m_pLocalCharacter)
