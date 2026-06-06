@@ -133,6 +133,10 @@ void CControls::ConKeyAimAngle(IConsole::IResult *pResult, void *pUserData)
 	const int Dummy = g_Config.m_ClDummy;
 	if(pResult->GetInteger(0)) // key down
 	{
+		// Cancel aim_angle2 so they don't fight over mouse position
+		pControls->m_aAimAngle2TargetReached[Dummy] = true;
+		pControls->m_aAimAngle2SettingPress[Dummy] = false;
+
 		const float AngleRad = (float)g_Config.m_BcAimAngle / 256.0f;
 		const float Distance = maximum(length(pControls->m_aMousePos[Dummy]), 100.0f);
 		pControls->m_aAimAngleTarget[Dummy].x = std::cos(AngleRad) * Distance;
@@ -154,6 +158,10 @@ void CControls::ConKeyAimAngle2(IConsole::IResult *pResult, void *pUserData)
 	const int Dummy = g_Config.m_ClDummy;
 	if(pResult->GetInteger(0))
 	{
+		// Cancel aim_angle so they don't fight over mouse position
+		pControls->m_aAimAngleTargetReached[Dummy] = true;
+		pControls->m_aAimAngleSettingPress[Dummy] = false;
+
 		const float AngleRad = (float)g_Config.m_BcAimAngle2 / 256.0f;
 		const float Distance = maximum(length(pControls->m_aMousePos[Dummy]), 100.0f);
 		pControls->m_aAimAngle2Target[Dummy].x = std::cos(AngleRad) * Distance;
