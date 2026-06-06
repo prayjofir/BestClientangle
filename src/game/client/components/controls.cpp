@@ -138,11 +138,9 @@ void CControls::ConKeyAimAngle(IConsole::IResult *pResult, void *pUserData)
 		pControls->m_aAimAngleTarget[Dummy].x = std::cos(AngleRad) * Distance;
 		pControls->m_aAimAngleTarget[Dummy].y = std::sin(AngleRad) * Distance;
 		const float Dist = length(pControls->m_aAimAngleTarget[Dummy] - pControls->m_aMousePos[Dummy]);
-		if(Dist > 15.0f) // more than 15 units away from target
-		{
-			pControls->m_aAimAngleTargetReached[Dummy] = false;
-			pControls->m_aAimAngleSettingPress[Dummy] = true; // block entire keypress
-		}
+		pControls->m_aAimAngleTargetReached[Dummy] = false; // always move to exact target
+		if(Dist > 15.0f)
+			pControls->m_aAimAngleSettingPress[Dummy] = true; // suppress only if far
 	}
 	else // key up
 	{
@@ -161,11 +159,9 @@ void CControls::ConKeyAimAngle2(IConsole::IResult *pResult, void *pUserData)
 		pControls->m_aAimAngle2Target[Dummy].x = std::cos(AngleRad) * Distance;
 		pControls->m_aAimAngle2Target[Dummy].y = std::sin(AngleRad) * Distance;
 		const float Dist = length(pControls->m_aAimAngle2Target[Dummy] - pControls->m_aMousePos[Dummy]);
+		pControls->m_aAimAngle2TargetReached[Dummy] = false;
 		if(Dist > 15.0f)
-		{
-			pControls->m_aAimAngle2TargetReached[Dummy] = false;
 			pControls->m_aAimAngle2SettingPress[Dummy] = true;
-		}
 	}
 	else
 	{
