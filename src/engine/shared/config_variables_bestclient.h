@@ -21,6 +21,7 @@ MACRO_CONFIG_INT(BcChatMediaPreviewMaxWidth, bc_chat_media_preview_max_width, 22
 MACRO_CONFIG_INT(BcChatMediaViewer, bc_chat_media_viewer, 1, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Enable fullscreen media viewer for chat previews")
 MACRO_CONFIG_INT(BcChatMediaViewerMaxZoom, bc_chat_media_viewer_max_zoom, 800, 100, 2000, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Maximum zoom of the chat media viewer in percent")
 
+MACRO_CONFIG_INT(BcCrystalLaser, bc_crystal_laser, 0, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Render rifle and shotgun lasers with crystal shards and icy glow")
 MACRO_CONFIG_INT(BcPrevMouseMaxDistance45Degrees, bc_prev_mouse_max_distance_45_degrees, 400, 0, 5000, CFGFLAG_CLIENT | CFGFLAG_SAVE | CFGFLAG_INSENSITIVE, "Previous maximum cursor distance for 45 degrees")
 MACRO_CONFIG_INT(BcPrevInpMousesens45Degrees, bc_prev_inp_mousesens_45_degrees, 200, 1, 1000000, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Previous mouse sensitivity for 45 degrees")
 MACRO_CONFIG_INT(BcToggle45Degrees, bc_toggle_45_degrees, 0, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Use toggle mode for 45 degrees bind")
@@ -63,6 +64,7 @@ MACRO_CONFIG_INT(BcShowPointsInTab, bc_show_points_in_tab, 0, 0, 1, CFGFLAG_CLIE
 MACRO_CONFIG_INT(BcBestClientSettingsTabs, bc_bestclient_settings_tabs, 0, 0, 65536, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Bit flags to disable BestClient settings tabs")
 MACRO_CONFIG_INT(BcEmoticonShadow, bc_emoticon_shadow, 0, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Draw shadow behind emoticons")
 MACRO_CONFIG_INT(BcChatSaveDraft, bc_chat_save_draft, 0, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Keep unfinished chat input when closing chat")
+MACRO_CONFIG_INT(BcSilentTyping, bc_silent_typing, 0, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Hide PLAYERFLAG_CHATTING from others while typing")
 MACRO_CONFIG_INT(BcChatAltCommandLayout, bc_chat_alt_command_layout, 0, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Interpret slash chat commands typed in the Russian keyboard layout")
 MACRO_CONFIG_INT(BcScoreboardTeamGradients, bc_scoreboard_team_gradients, 1, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Render scoreboard team colors with a left-to-right gradient")
 MACRO_CONFIG_INT(BcShowhudDummyCoordIndicator, bc_showhud_dummy_coord_indicator, 0, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Show player-below indicator in ingame HUD")

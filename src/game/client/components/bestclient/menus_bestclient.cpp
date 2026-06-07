@@ -2840,6 +2840,7 @@ static const SBestClientComponentEntry gs_aBestClientComponentEntries[] = {
 	{CBestClient::COMPONENT_VISUALS_JELLY_TEE, "Jelly Tee", COMPONENTS_GROUP_VISUALS},
 	{CBestClient::COMPONENT_VISUALS_3D_PARTICLES, "3D Particles", COMPONENTS_GROUP_VISUALS},
 	{CBestClient::COMPONENT_VISUALS_AFTERIMAGE, "Afterimage", COMPONENTS_GROUP_VISUALS},
+	{CBestClient::COMPONENT_VISUALS_CRYSTAL_LASER, "Crystal Laser", COMPONENTS_GROUP_VISUALS},
 	{CBestClient::COMPONENT_VISUALS_GRAFFITI, "Graffiti", COMPONENTS_GROUP_VISUALS},
 	{CBestClient::COMPONENT_VISUALS_MUSIC_PLAYER, "Music Player", COMPONENTS_GROUP_VISUALS},
 	{CBestClient::COMPONENT_VISUALS_KEYSTROKES, "Keystrokes", COMPONENTS_GROUP_VISUALS},
@@ -3076,6 +3077,13 @@ void CMenus::RenderSettingsBestClient(CUIRect MainView)
 		MainView.y += VisualsScrollOffset.y;
 		MainView.VSplitRight(5.0f, &MainView, nullptr);
 		MainView.VSplitLeft(5.0f, nullptr, &MainView);
+
+		const bool IsOnline = Client()->State() == IClient::STATE_ONLINE;
+		const bool IsFngServer = IsOnline && GameClient()->m_GameInfo.m_PredictFNG;
+		const bool Is0xFServer = IsOnline && str_comp_nocase(GameClient()->m_GameInfo.m_aGameType, "0xf") == 0;
+		const bool IsBlockedCameraServer = IsFngServer || Is0xFServer;
+		(void)IsBlockedCameraServer;
+
 
 		CUIRect LeftView, RightView;
 		MainView.VSplitMid(&LeftView, &RightView, MarginBetweenViews);
@@ -3545,6 +3553,33 @@ void CMenus::RenderSettingsBestClient(CUIRect MainView)
 			}
 			Column.HSplitTop(MarginBetweenSections, nullptr, &Column);
 		}
+		// Sweat Weapon (left column block)
+		if(!GameClient()->m_BestClient.IsComponentDisabled(CBestClient::COMPONENT_VISUALS_CRYSTAL_LASER))
+		{
+			const float ContentHeight = LineSize + MarginSmall + LineSize + MarginSmall + LineSize + 58.0f + MarginSmall + LineSize + 58.0f;
+			CUIRect Content, Label, PreviewLabel, PreviewRect;
+			BeginBlock(Column, ContentHeight, Content);
+
+			Content.HSplitTop(LineSize, &Label, &Content);
+			Ui()->DoLabel(&Label, BCLocalize("Sweat Weapon"), HeadlineFontSize, TEXTALIGN_ML);
+			Content.HSplitTop(MarginSmall, nullptr, &Content);
+
+			DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_BcCrystalLaser, BCLocalize("Enable"), &g_Config.m_BcCrystalLaser, &Content, LineSize);
+
+			Content.HSplitTop(MarginSmall, nullptr, &Content);
+			Content.HSplitTop(LineSize, &PreviewLabel, &Content);
+			Ui()->DoLabel(&PreviewLabel, BCLocalize("Crystal Laser"), 14.0f, TEXTALIGN_ML);
+			Content.HSplitTop(58.0f, &PreviewRect, &Content);
+			DoLaserPreview(&PreviewRect, ColorHSLA(g_Config.m_ClLaserRifleOutlineColor), ColorHSLA(g_Config.m_ClLaserRifleInnerColor), LASERTYPE_RIFLE);
+
+			Content.HSplitTop(MarginSmall, nullptr, &Content);
+			Content.HSplitTop(LineSize, &PreviewLabel, &Content);
+			Ui()->DoLabel(&PreviewLabel, BCLocalize("Sand Shotgun"), 14.0f, TEXTALIGN_ML);
+			Content.HSplitTop(58.0f, &PreviewRect, &Content);
+			DoLaserPreview(&PreviewRect, ColorHSLA(g_Config.m_ClLaserShotgunOutlineColor), ColorHSLA(g_Config.m_ClLaserShotgunInnerColor), LASERTYPE_SHOTGUN);
+			Column.HSplitTop(MarginBetweenSections, nullptr, &Column);
+		}
+
 		if(!GameClient()->m_BestClient.IsComponentDisabled(CBestClient::COMPONENT_VISUALS_GRAFFITI))
 		{
 			static float s_GraffityPhase = 0.0f;
@@ -5481,7 +5516,7 @@ void CMenus::RenderSettingsBestClient(CUIRect MainView)
 			const bool ShowRealHitboxEnabled = g_Config.m_BcShowRealHitbox != 0;
 			const float ColorPickerHeight = ShowRealHitboxEnabled ? (ColorPickerLineSize + ColorPickerLineSpacing) : 0.0f;
 			const float AutoLockDelayHeight = g_Config.m_BcAutoTeamLock ? LineSize : 0.0f;
-			const float ContentHeight = LineSize + MarginSmall + 13.0f * LineSize + ColorPickerHeight + AutoLockDelayHeight;
+			const float ContentHeight = LineSize + MarginSmall + 14.0f * LineSize + ColorPickerHeight + AutoLockDelayHeight;
 			CUIRect Content, Label, Row;
 			BeginBlock(Column, ContentHeight, Content);
 
@@ -5521,6 +5556,7 @@ void CMenus::RenderSettingsBestClient(CUIRect MainView)
 
 			DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_BcEmoticonShadow, BCLocalize("Shadow of Emotions"), &g_Config.m_BcEmoticonShadow, &Content, LineSize);
 			DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_BcChatSaveDraft, BCLocalize("Save unsent messages"), &g_Config.m_BcChatSaveDraft, &Content, LineSize);
+			DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_BcSilentTyping, BCLocalize("Silent typing"), &g_Config.m_BcSilentTyping, &Content, LineSize);
 			DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_BcChatAltCommandLayout, BCLocalize("Commands in other layout"), &g_Config.m_BcChatAltCommandLayout, &Content, LineSize);
 			DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_BcCinematicCamera, BCLocalize("Cinematic camera"), &g_Config.m_BcCinematicCamera, &Content, LineSize);
 			DoButton_CheckBoxAutoVMarginAndSet(&g_Config.m_BcMastersrv, BCLocalize("Use BestClient MasterServer"), &g_Config.m_BcMastersrv, &Content, LineSize);
