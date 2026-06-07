@@ -121,6 +121,52 @@ tc_discord_rpc 1    // 0=kapalı, 1=açık (yeniden başlatma gerektirir)
 
 **Not:** Discord aynı anda sadece bir oyun aktivitesi gösterir. BestClient açıkken başka bir uygulamanın RPC'si aktifse görünmeyebilir.
 
+#### 🐛 Flatpak Discord Sorunu (Linux) — ÇÖZÜLDİ
+
+Discord Flatpak olarak kuruluysa, IPC socket beklenen yerde olmaz:
+- **SDK'nın beklediği:** `/run/user/1000/discord-ipc-0`
+- **Flatpak'ın koyduğu:** `/run/user/1000/app/com.discordapp.Discord/discord-ipc-0`
+
+Bu yüzden `DiscordCreate` fonksiyonu `error=4` (InternalError) döner ve RPC başlamaz.
+
+**Kalıcı Çözüm — Systemd user servisi (bir kez kurulur):**
+```bash
+# 1. Path unit oluştur (Discord açılınca tetiklenir)
+cat > ~/.config/systemd/user/discord-rpc-bridge.path << 'EOF'
+[Unit]
+Description=Watch for Flatpak Discord IPC socket
+
+[Path]
+PathExists=/run/user/%U/app/com.discordapp.Discord/discord-ipc-0
+Unit=discord-rpc-bridge.service
+
+[Install]
+WantedBy=default.target
+EOF
+
+# 2. Service unit oluştur (symlink kurar)
+cat > ~/.config/systemd/user/discord-rpc-bridge.service << 'EOF'
+[Unit]
+Description=Discord RPC Bridge for Flatpak
+
+[Service]
+Type=oneshot
+ExecStart=/bin/ln -sf /run/user/%U/app/com.discordapp.Discord/discord-ipc-0 /run/user/%U/discord-ipc-0
+EOF
+
+# 3. Aktif et
+systemctl --user daemon-reload
+systemctl --user enable --now discord-rpc-bridge.path
+```
+
+**Durum:** Bu servis `~/.config/systemd/user/` içinde saklanır. Proje güncellemelerinden etkilenmez, her boot'ta otomatik çalışır.
+
+#### 🐛 dlopen SO Bulunamıyor Sorunu — ÇÖZÜLDİ
+
+`DISCORD_DYNAMIC=ON` modunda `dlopen("discord_game_sdk.so")` sistem kütüphane yollarında arar; `build/` dizinine bakmaz. Bu yüzden SO dosyası build dizininde olmasına rağmen yüklenemiyordu.
+
+**Çözüm:** `src/engine/client/discord.cpp` güncellendi — artık önce `/proc/self/exe` ile executable'ın kendi dizinine, sonra sistem yollarına bakar.
+
 ---
 
 ## 🆕 Yeni Özellik Ekleme
@@ -194,6 +240,8 @@ cmake --build build --target DDNet -j$(nproc)
 | Mouse spam'de kilitlenme | İki aim sistemi çakışıyor | Her bind diğerini iptal eder (mutual cancel) |
 | Discord görünmüyor | Başka uygulama RPC'yi alıyor | Diğer uygulamayı kapat |
 | Hook erken atıyor | `settingPress` kontrolü | Key bırakılana kadar blok devam eder |
+| Discord RPC hiç çalışmıyor (`error=4`) | Flatpak Discord IPC socket farklı yerde | **Çözüldü** — systemd bridge servisi ile. Bkz. Discord RPC → Flatpak bölümü |
+| Discord SO yüklenemiyor | `dlopen` build dizinine bakmıyor | **Çözüldü** — `discord.cpp` `/proc/self/exe` ile executable dizinine bakıyor |
 
 ---
 

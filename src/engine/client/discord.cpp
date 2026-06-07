@@ -12,11 +12,39 @@ typedef enum EDiscordResult(DISCORD_API *FDiscordCreate)(DiscordVersion, struct 
 
 #if defined(CONF_DISCORD_DYNAMIC)
 #include <dlfcn.h>
+#include <limits.h>
+#include <unistd.h>
 FDiscordCreate GetDiscordCreate()
 {
-	void *pSdk = dlopen("discord_game_sdk.so", RTLD_NOW);
+	// First, try to load from the same directory as the executable (e.g. build/)
+	void *pSdk = nullptr;
+	char aExePath[PATH_MAX];
+	ssize_t Len = readlink("/proc/self/exe", aExePath, sizeof(aExePath) - 1);
+	if(Len > 0)
+	{
+		aExePath[Len] = '\0';
+		// Strip the binary name to get the directory
+		char *pSlash = strrchr(aExePath, '/');
+		if(pSlash)
+		{
+			*(pSlash + 1) = '\0';
+			char aFullPath[PATH_MAX];
+			str_format(aFullPath, sizeof(aFullPath), "%sdiscord_game_sdk.so", aExePath);
+			pSdk = dlopen(aFullPath, RTLD_NOW);
+			if(pSdk)
+				dbg_msg("discord", "loaded SDK from executable directory: %s", aFullPath);
+		}
+	}
+	// Fallback: search system library paths (LD_LIBRARY_PATH etc.)
 	if(!pSdk)
 	{
+		pSdk = dlopen("discord_game_sdk.so", RTLD_NOW);
+		if(pSdk)
+			dbg_msg("discord", "loaded SDK from system library path");
+	}
+	if(!pSdk)
+	{
+		dbg_msg("discord", "failed to load discord_game_sdk.so: %s", dlerror());
 		return nullptr;
 	}
 	return (FDiscordCreate)dlsym(pSdk, "DiscordCreate");
