@@ -636,10 +636,8 @@ void CGameClient::OnConsoleInit()
 					      &m_3DParticles,
 					      &m_Translate, // TClient
 					      &m_Ghost,
-					      &m_Graffity,
 					      &m_BestClient, // BestClient binds
 					      &m_TClient, // TClient (Must be before chat and players)
-					      &m_Afterimage,
 					      &m_Players,
 					      &m_MovingTilesBackground, // TClient
 					      &m_FastPractice,
@@ -648,7 +646,6 @@ void CGameClient::OnConsoleInit()
 					      &m_Outlines, // TClient
 					      &m_Mumble, // TClient
 					      &m_Pet, // TClient
-							      &m_ChatBubbles,
 					      &m_ClientIndicator,
 					      &m_Particles.m_RenderExplosions,
 					      &m_NamePlates,
@@ -698,7 +695,6 @@ void CGameClient::OnConsoleInit()
 						  &m_Motd, // for pressing esc to remove it
 						  &m_Spectator,
 						  &m_FastActions,
-						  &m_Graffity,
 						  &m_BindWheel, // TClient
 						  &m_Emoticon,
 						  &m_ImportantAlert,
@@ -999,7 +995,6 @@ void CGameClient::OnInit()
 void CGameClient::OnUpdate()
 {
 	HandleLanguageChanged();
-	MaybeShowSnapTapBlockedPopup();
 
 	CUIElementBase::Init(Ui()); // update static pointer because game and editor use separate UI
 
@@ -1133,7 +1128,6 @@ void CGameClient::PrepareInputForSend(int *pData, int Size, bool Dummy)
 void CGameClient::OnConnected()
 {
 	m_FastPractice.InvalidateBufferedInputState();
-	MaybeShowSnapTapBlockedPopup();
 	const char *pConnectCaption = DemoPlayer()->IsPlaying() ? Localize("Preparing demo playback") : Localize("Connected");
 	const char *pLoadMapContent = Localize("Initializing map logic");
 	// render loading before skip is calculated
@@ -1417,8 +1411,6 @@ void CGameClient::OnRender()
 	{
 		if(!pComponent->IsComponentActive())
 			continue;
-		if(pComponent == &m_MusicPlayer)
-			m_Graffity.RenderOverlayWorld();
 		if(UseGameNoHudAspect && !HudAspectDisabled && pComponent == &m_MusicPlayer)
 		{
 			Graphics()->SetScreenAspectOverrideEnabled(false);
@@ -1883,7 +1875,6 @@ void CGameClient::OnStateChange(int NewState, int OldState)
 	// reset everything when not already connected (to keep gathered stuff)
 	if(NewState < IClient::STATE_ONLINE)
 	{
-		m_SnapTapBlockedPopupShown = false;
 		OnReset();
 	}
 
@@ -2091,6 +2082,26 @@ void CGameClient::ProcessEvents()
 	if(m_SuppressEvents)
 		return;
 
+	// Determine if any local player just hooked something or fired hammer this snapshot.
+	// NOTE: ProcessEvents() is called before m_Snap.m_aCharacters is populated (InvalidateSnapshot
+	// zeroes m_Snap first), so we read directly from the raw snapshot items via SnapFindItem.
+	bool LocalJustGrabbed = false;
+	bool LocalJustFiredHammer = false;
+	for(int Dummy = 0; Dummy < NUM_DUMMIES; Dummy++)
+	{
+		const int LocalId = m_aLocalIds[Dummy];
+		if(LocalId < 0 || LocalId >= MAX_CLIENTS)
+			continue;
+		const auto *pCur = static_cast<const CNetObj_Character *>(Client()->SnapFindItem(IClient::SNAP_CURRENT, NETOBJTYPE_CHARACTER, LocalId));
+		const auto *pPrev = static_cast<const CNetObj_Character *>(Client()->SnapFindItem(IClient::SNAP_PREV, NETOBJTYPE_CHARACTER, LocalId));
+		if(!pCur || !pPrev)
+			continue;
+		if(pCur->m_HookState == HOOK_GRABBED && pPrev->m_HookState != HOOK_GRABBED)
+			LocalJustGrabbed = true;
+		if(pCur->m_AttackTick != pPrev->m_AttackTick && pCur->m_Weapon == WEAPON_HAMMER)
+			LocalJustFiredHammer = true;
+	}
+
 	int SnapType = IClient::SNAP_CURRENT;
 	int Num = Client()->SnapNumItems(SnapType);
 	for(int Index = 0; Index < Num; Index++)
@@ -2128,7 +2139,7 @@ void CGameClient::ProcessEvents()
 			vec2 HammerHitPos = vec2(pEvent->m_X, pEvent->m_Y);
 			if(!m_PredictedWorld.CheckPredictedEventHandled(CGameWorld::CPredictedEvent(Item.m_Type, HammerHitPos, -1, Client()->GameTick(g_Config.m_ClDummy))))
 			{
-				m_Effects.HammerHit(HammerHitPos, Alpha, Volume);
+				m_Effects.HammerHit(HammerHitPos, Alpha, Volume, !LocalJustFiredHammer);
 			}
 
 			// Hook combo (hammer mode): count only our own hammer attacks, not when we get hit.
@@ -2178,6 +2189,14 @@ void CGameClient::ProcessEvents()
 
 			if(m_GameInfo.m_RaceSounds && ((pEvent->m_SoundId == SOUND_GUN_FIRE && !g_Config.m_SndGun) || (pEvent->m_SoundId == SOUND_PLAYER_PAIN_LONG && !g_Config.m_SndLongPain)))
 				continue;
+
+			if(g_Config.m_BcMuteOthersHook)
+			{
+				if(pEvent->m_SoundId == SOUND_HOOK_ATTACH_GROUND || pEvent->m_SoundId == SOUND_HOOK_NOATTACH)
+					continue;
+				if(pEvent->m_SoundId == SOUND_HOOK_ATTACH_PLAYER && !LocalJustGrabbed)
+					continue;
+			}
 
 			vec2 SoundPos = vec2(pEvent->m_X, pEvent->m_Y);
 			if(!m_PredictedWorld.CheckPredictedEventHandled(CGameWorld::CPredictedEvent(Item.m_Type, SoundPos, -1, Client()->GameTick(g_Config.m_ClDummy), pEvent->m_SoundId)))
@@ -6720,22 +6739,19 @@ bool CGameClient::IsSnapTapBlockedByCommunity() const
 	else if(m_ConnectServerInfo.has_value() && m_ConnectServerInfo->m_aCommunityId[0] != '\0')
 		pCommunityId = m_ConnectServerInfo->m_aCommunityId;
 
+	if(pCommunityId == nullptr)
+	{
+		const auto *pEntry = ServerBrowser()->Find(Client()->ServerAddress());
+		if(pEntry && pEntry->m_Info.m_aCommunityId[0] != '\0')
+			pCommunityId = pEntry->m_Info.m_aCommunityId;
+	}
+
 	return pCommunityId != nullptr && str_comp_nocase(pCommunityId, IServerBrowser::COMMUNITY_DDNET) == 0;
-}
-
-void CGameClient::MaybeShowSnapTapBlockedPopup()
-{
-	if(m_SnapTapBlockedPopupShown || !IsSnapTapBlockedByCommunity())
-		return;
-
-	m_SnapTapBlockedPopupShown = true;
-	m_Menus.ShowPopupMessage("Snap Tap", Localize("Snap Tap does not work on the \"DDNet\" community."), Localize("OK"));
 }
 
 void CGameClient::SetConnectInfo(const NETADDR *pAddress)
 {
 	m_ConnectServerInfo = std::nullopt;
-	m_SnapTapBlockedPopupShown = false;
 	if(!pAddress)
 		return;
 	const auto *pEntry = ServerBrowser()->Find(*pAddress);

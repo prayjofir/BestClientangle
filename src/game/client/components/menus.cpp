@@ -78,8 +78,6 @@ CMenus::CMenus()
 	m_NeedRestartSound = false;
 	m_NeedSendinfo = false;
 	m_NeedSendDummyinfo = false;
-	m_BestClientReShadeNoticePending = false;
-	m_BestClientReShadeNoticeDontShowAgain = 0;
 	m_MenuActive = true;
 	m_ShowStart = true;
 
@@ -971,8 +969,6 @@ void CMenus::OnInit()
 		m_ShowStart = false;
 	}
 	m_MenuPage = g_Config.m_UiPage;
-	m_BestClientReShadeNoticePending = g_Config.m_BcReshadeNoticeDoNotShowAgain == 0;
-	m_BestClientReShadeNoticeDontShowAgain = g_Config.m_BcReshadeNoticeDoNotShowAgain;
 
 	m_RefreshButton.Init(Ui(), -1);
 	m_ConnectButton.Init(Ui(), -1);
@@ -1520,14 +1516,6 @@ void CMenus::Render()
 		ms_ColorTabbarHover = ms_ColorTabbarHoverOutgame;
 	}
 
-	const bool BestClientSettingsMightRender =
-		(ClientState == IClient::STATE_OFFLINE && m_Popup == POPUP_NONE && !m_ShowStart && m_MenuPage == PAGE_SETTINGS && g_Config.m_UiSettingsPage == SETTINGS_BESTCLIENT) ||
-		(ClientState == IClient::STATE_ONLINE && m_Popup == POPUP_NONE && m_GamePage == PAGE_SETTINGS && g_Config.m_UiSettingsPage == SETTINGS_BESTCLIENT);
-	if(!BestClientSettingsMightRender)
-	{
-		SetBestClientShopVisible(false);
-	}
-
 	CUIRect Screen = *Ui()->Screen();
 	if(IsActive() && (ClientState == IClient::STATE_ONLINE || ClientState == IClient::STATE_DEMOPLAYBACK))
 	{
@@ -1795,32 +1783,10 @@ void CMenus::RenderPopupFullscreen(CUIRect Screen)
 		pTitle = Localize("Save skin");
 		pExtraText = Localize("Are you sure you want to save your skin? If a skin with this name already exists, it will be replaced.");
 	}
-	else if(m_Popup == POPUP_BESTCLIENT_RESHADE_NOTICE)
-	{
-		BgColor = ColorRGBA(0.45f, 0.08f, 0.08f, 0.88f);
-		pTitle = "ReShade";
-		const bool RussianLanguage = str_endswith_nocase(g_Config.m_ClLanguagefile, "russian.txt") != nullptr;
-		pExtraText = RussianLanguage ?
-				     "В этом обновлении появилась новая экспериментальная функция ReShade. Она может работать стабильно не на всех устройствах. Если вы столкнулись с багами или заметили сильное падение fps, рекомендуем отключить эту функцию в настройках." :
-				     "This update introduces a new experimental feature called ReShade. It may not work stably on all devices. If you encounter bugs or notice a significant FPS drop, we recommend disabling this feature in the settings.";
-		TopAlign = true;
-	}
 
 	CUIRect Box, Part;
 	Box = Screen;
-	if(m_Popup == POPUP_BESTCLIENT_RESHADE_NOTICE)
-	{
-		const float PopupWidth = minimum(Screen.w - 220.0f, 1240.0f);
-		const float MessageFontSize = 18.0f;
-		const float MessageWidth = PopupWidth - 40.0f;
-		const float MessageHeight = TextRender()->TextBoundingBox(MessageFontSize, pExtraText, -1, MessageWidth).m_H;
-		const float PopupHeight = minimum(maximum(190.0f + MessageHeight, 300.0f), Screen.h - 120.0f);
-		Box.w = PopupWidth;
-		Box.h = PopupHeight;
-		Box.x = Screen.x + (Screen.w - Box.w) / 2.0f;
-		Box.y = Screen.y + (Screen.h - Box.h) / 2.0f;
-	}
-	else if(m_Popup != POPUP_FIRST_LAUNCH)
+	if(m_Popup != POPUP_FIRST_LAUNCH)
 	{
 		Box.Margin(150.0f, &Box);
 	}
@@ -1844,7 +1810,7 @@ void CMenus::RenderPopupFullscreen(CUIRect Screen)
 	}
 
 	// Extra text (optional)
-	if(m_Popup != POPUP_JOIN_TUTORIAL && m_Popup != POPUP_BESTCLIENT_RESHADE_NOTICE)
+	if(m_Popup != POPUP_JOIN_TUTORIAL)
 	{
 		CUIRect ExtraText;
 		Box.HSplitTop(24.0f, &ExtraText, &Box);
@@ -2011,37 +1977,6 @@ void CMenus::RenderPopupFullscreen(CUIRect Screen)
 
 			Ui()->DoLabel(&Label, Localize("Name"), 18.0f, TEXTALIGN_ML);
 			Ui()->DoLabel(&Name, pEntry->m_Info.m_aName, 18.0f, TEXTALIGN_ML);
-		}
-	}
-	else if(m_Popup == POPUP_BESTCLIENT_RESHADE_NOTICE)
-	{
-		const float MessageFontSize = 18.0f;
-		const float MessageHeight = TextRender()->TextBoundingBox(MessageFontSize, pExtraText, -1, Box.w - 40.0f).m_H;
-		CUIRect MessageRect, CheckBoxRow, ButtonBar;
-		Box.HSplitTop(8.0f, nullptr, &Box);
-		Box.HSplitTop(MessageHeight, &MessageRect, &Box);
-		Box.HSplitTop(24.0f, nullptr, &Box);
-		Box.HSplitTop(28.0f, &CheckBoxRow, &Box);
-		Box.HSplitTop(18.0f, nullptr, &Box);
-		Box.HSplitTop(28.0f, &ButtonBar, &Box);
-		MessageRect.VMargin(20.0f, &MessageRect);
-		CheckBoxRow.VMargin(20.0f, &CheckBoxRow);
-		ButtonBar.VMargin(100.0f, &ButtonBar);
-
-		Ui()->ClipEnable(&MessageRect);
-		Ui()->DoLabel(&MessageRect, pExtraText, MessageFontSize, TEXTALIGN_TL, {.m_MaxWidth = MessageRect.w});
-		Ui()->ClipDisable();
-
-		const bool RussianLanguage = str_endswith_nocase(g_Config.m_ClLanguagefile, "russian.txt") != nullptr;
-		DoButton_CheckBoxAutoVMarginAndSet(&m_BestClientReShadeNoticeDontShowAgain, RussianLanguage ? "Не показывать снова" : "Do not show again", &m_BestClientReShadeNoticeDontShowAgain, &CheckBoxRow, CheckBoxRow.h);
-
-		static CButtonContainer s_ButtonConfirm;
-		if(DoButton_Menu(&s_ButtonConfirm, RussianLanguage ? "Хорошо" : "OK", 0, &ButtonBar) || Ui()->ConsumeHotkey(CUi::HOTKEY_ESCAPE) || Ui()->ConsumeHotkey(CUi::HOTKEY_ENTER))
-		{
-			g_Config.m_BcReshadeNoticeDoNotShowAgain = m_BestClientReShadeNoticeDontShowAgain ? 1 : 0;
-			ConfigManager()->Save();
-			m_BestClientReShadeNoticePending = false;
-			m_Popup = POPUP_NONE;
 		}
 	}
 	else if(m_Popup == POPUP_LANGUAGE)
@@ -3065,7 +3000,8 @@ bool CMenus::OnInput(const IInput::CEvent &Event)
 	{
 		if((Event.m_Flags & IInput::FLAG_PRESS) && Event.m_Key == KEY_ESCAPE &&
 			IsActive() && (Client()->State() == IClient::STATE_ONLINE || Client()->State() == IClient::STATE_DEMOPLAYBACK) &&
-			BCUiAnimations::Enabled() && g_Config.m_BcIngameMenuAnimation != 0 && g_Config.m_BcIngameMenuAnimationMs > 0)
+			BCUiAnimations::Enabled() && g_Config.m_BcIngameMenuAnimation != 0 && g_Config.m_BcIngameMenuAnimationMs > 0 &&
+			!Ui()->IsPopupOpen())
 		{
 			if(!m_BcIngameMenuClosing)
 			{
@@ -3150,13 +3086,6 @@ void CMenus::OnRender()
 
 	if(Client()->State() != IClient::STATE_ONLINE && Client()->State() != IClient::STATE_DEMOPLAYBACK)
 		SetActive(true);
-
-	if(m_BestClientReShadeNoticePending && m_Popup == POPUP_NONE)
-	{
-		m_Popup = POPUP_BESTCLIENT_RESHADE_NOTICE;
-		m_BestClientReShadeNoticeDontShowAgain = g_Config.m_BcReshadeNoticeDoNotShowAgain;
-		SetActive(true);
-	}
 
 	if(Client()->State() == IClient::STATE_ONLINE && GameClient()->m_ServerMode == CGameClient::SERVERMODE_PUREMOD)
 	{
@@ -3244,11 +3173,31 @@ void CMenus::OnRender()
 		}
 	}
 
+	// Precompute overlay state before Render() so we can block menu interactions
+	static bool s_StuckOverlayDismissed = false;
+	static int s_StuckLastMode = -99;
+	static int s_StuckLastRatio = -99;
+	if(s_StuckLastMode != g_Config.m_BcCustomAspectRatioMode || s_StuckLastRatio != g_Config.m_BcCustomAspectRatio)
+	{
+		s_StuckOverlayDismissed = false;
+		s_StuckLastMode = g_Config.m_BcCustomAspectRatioMode;
+		s_StuckLastRatio = g_Config.m_BcCustomAspectRatio;
+	}
+	const bool AspectOverlayActive = g_Config.m_BcCustomAspectRatioApplyMode == 1 &&
+		(g_Config.m_BcCustomAspectRatioMode > 0 ||
+		(g_Config.m_BcCustomAspectRatioMode < 0 && g_Config.m_BcCustomAspectRatio > 0));
+	const bool ShowStuckOverlay = IsActive() && AspectOverlayActive && !s_StuckOverlayDismissed;
+	// Block menu button fires: clear active item so no DoButtonLogic fires this frame
+	if(ShowStuckOverlay)
+		Ui()->SetActiveItem(nullptr);
+
 	Render();
 
-	if(IsActive())
+	// After Render: discard buttons that became active, and suppress hot item next frame
+	if(ShowStuckOverlay)
 	{
-		RenderTools()->RenderCursor(Ui()->MousePos(), 24.0f);
+		Ui()->SetActiveItem(nullptr);
+		Ui()->SetHotItem(nullptr);
 	}
 
 	// render debug information
@@ -3271,6 +3220,64 @@ void CMenus::OnRender()
 		else
 			SetActive(false);
 	}
+
+	// Safety overlay: shown in menu when aspect ratio "Full" mode is active.
+	// Renders in real window coordinates so it stays readable regardless of distortion.
+	// Uses UpdatedMousePos (raw pixels) → real virtual coords to avoid the distorted m_MousePos.
+	if(ShowStuckOverlay)
+	{
+		Ui()->SetUseGraphicsScreenAspect(false);
+		Ui()->MapScreen();
+		const CUIRect *pReal = Ui()->Screen();
+
+		// Convert raw pixel mouse to real virtual coords
+		const float WinW = (float)Graphics()->ScreenWidth();
+		const float WinH = (float)Graphics()->ScreenHeight();
+		const vec2 RawMouse = Ui()->UpdatedMousePos();
+		const vec2 RealMouse = vec2(RawMouse.x * pReal->w / WinW, RawMouse.y * pReal->h / WinH);
+
+		const float PanelW = minimum(360.0f, pReal->w - 12.0f);
+		CUIRect Panel;
+		Panel.x = pReal->x + (pReal->w - PanelW) * 0.5f;
+		Panel.y = pReal->y + 6.0f;
+		Panel.w = PanelW;
+		Panel.h = 30.0f;
+		Graphics()->DrawRect(Panel.x, Panel.y, Panel.w, Panel.h, ColorRGBA(0.0f, 0.0f, 0.0f, 0.82f), IGraphics::CORNER_ALL, 5.0f);
+		Panel.Margin(2.0f, &Panel);
+
+		CUIRect StuckBtn, CloseBtn;
+		Panel.VSplitRight(80.0f, &Panel, &CloseBtn);
+		CloseBtn.VMargin(2.0f, &CloseBtn);
+		Panel.VSplitRight(4.0f, &Panel, nullptr);
+		Panel.VSplitRight(88.0f, &Panel, &StuckBtn);
+		StuckBtn.VMargin(2.0f, &StuckBtn);
+		Panel.VSplitRight(4.0f, &Panel, nullptr);
+		Ui()->DoLabel(&Panel, "Aspect ratio: Full", 10.0f, TEXTALIGN_ML);
+
+		auto RenderOverlayBtn = [&](const CUIRect &Rect, const char *pText, ColorRGBA Normal, ColorRGBA Hovered) -> bool {
+			const bool Hover = RealMouse.x >= Rect.x && RealMouse.x < Rect.x + Rect.w &&
+				RealMouse.y >= Rect.y && RealMouse.y < Rect.y + Rect.h;
+			Graphics()->DrawRect(Rect.x, Rect.y, Rect.w, Rect.h, Hover ? Hovered : Normal, IGraphics::CORNER_ALL, 3.0f);
+			Ui()->DoLabel(&Rect, pText, 10.5f, TEXTALIGN_MC);
+			return Hover && Ui()->MouseButtonClicked(0);
+		};
+
+		if(RenderOverlayBtn(StuckBtn, "I'm stuck", ColorRGBA(0.45f, 0.18f, 0.18f, 1.0f), ColorRGBA(0.7f, 0.28f, 0.28f, 1.0f)))
+		{
+			g_Config.m_BcCustomAspectRatioMode = 0;
+			g_Config.m_BcCustomAspectRatio = 0;
+			GameClient()->m_TClient.SetForcedAspect();
+		}
+		if(RenderOverlayBtn(CloseBtn, "Looks fine", ColorRGBA(0.18f, 0.36f, 0.18f, 1.0f), ColorRGBA(0.28f, 0.55f, 0.28f, 1.0f)))
+			s_StuckOverlayDismissed = true;
+
+		// Restore original coordinate system before cursor render
+		Ui()->SetUseGraphicsScreenAspect(!UseWindowAspectForUi);
+		Ui()->MapScreen();
+	}
+
+	if(IsActive())
+		RenderTools()->RenderCursor(Ui()->MousePos(), 24.0f);
 
 	Ui()->FinishCheck();
 	Ui()->ClearHotkeys();

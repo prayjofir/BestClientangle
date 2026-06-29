@@ -537,8 +537,8 @@ public:
 		}
 		Json.EndObject();
 		CreateHttpRequest(Http, g_Config.m_TcTranslateEndpoint[0] == '\0' ? "localhost:5000/translate" : g_Config.m_TcTranslateEndpoint);
-		const char *pJson = Json.GetOutputString().c_str();
-		m_pHttpRequest->PostJson(pJson);
+		const std::string JsonStr = Json.GetOutputString();
+		m_pHttpRequest->PostJson(JsonStr.c_str());
 	}
 };
 
@@ -721,6 +721,15 @@ void CTranslate::ConTranslateId(IConsole::IResult *pResult, void *pUserData)
 	pThis->Translate(pResult->GetInteger(0));
 }
 
+void CTranslate::ConToggleTranslate(IConsole::IResult *pResult, void *pUserData)
+{
+	CTranslate *pThis = static_cast<CTranslate *>(pUserData);
+	const int NewValue = g_Config.m_TcTranslateAutoIncoming ^ 1;
+	g_Config.m_TcTranslateAutoIncoming = NewValue;
+	g_Config.m_TcTranslateAutoOutgoing = NewValue;
+	pThis->GameClient()->m_Chat.Echo(NewValue ? "translate on" : "translate off");
+}
+
 void CTranslate::OnConsoleInit()
 {
 	// Migration from legacy single toggle (tc_translate_auto) to separate toggles.
@@ -739,6 +748,7 @@ void CTranslate::OnConsoleInit()
 
 	Console()->Register("translate", "?r[name]", CFGFLAG_CLIENT, ConTranslate, this, "Translate last message (of a given name)");
 	Console()->Register("translate_id", "v[id]", CFGFLAG_CLIENT, ConTranslateId, this, "Translate last message of the person with this id");
+	Console()->Register("toggle_translate", "", CFGFLAG_CLIENT, ConToggleTranslate, this, "Toggle auto-translate incoming and outgoing chat");
 }
 
 std::unique_ptr<ITranslateBackend> CTranslate::CreateBackend(const char *pText, const char *pSourceLanguage, const char *pTargetLanguage) const
@@ -839,7 +849,7 @@ bool CTranslate::HasPendingJobs() const
 
 void CTranslate::Translate(int Id, bool ShowProgress)
 {
-	if(Id < 0 || Id > (int)std::size(GameClient()->m_aClients))
+	if(Id < 0 || Id >= (int)std::size(GameClient()->m_aClients))
 	{
 		GameClient()->m_Chat.Echo("Not a valid ID");
 		return;

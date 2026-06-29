@@ -30,13 +30,10 @@
 #include "components/background.h"
 #include "components/bestclient/3d_particles.h"
 #include "components/bestclient/admin_panel.h"
-#include "components/bestclient/afterimage.h"
 #include "components/bestclient/bestclient.h"
-#include "components/bestclient/chat_bubbles.h"
 #include "components/bestclient/clientindicator/client_indicator.h"
 #include "components/bestclient/fast_actions.h"
 #include "components/bestclient/fast_practice.h"
-#include "components/bestclient/graffity/graffity.h"
 #include "components/bestclient/hud_editor.h"
 #include "components/bestclient/music_player.h"
 #include "components/bestclient/translate.h"
@@ -224,15 +221,12 @@ public:
 	CRaceDemo m_RaceDemo;
 	CGhost m_Ghost;
 	C3DParticles m_3DParticles;
-	CAfterimage m_Afterimage;
-	CChatBubbles m_ChatBubbles;
 	CClientIndicator m_ClientIndicator;
 	CMusicPlayer m_MusicPlayer;
 	CHudEditor m_HudEditor;
 	CAdminPanel m_AdminPanel;
 	CFastActions m_FastActions;
 	CFastPractice m_FastPractice;
-	CGraffity m_Graffity;
 	CBestClient m_BestClient;
 	CVoiceChat m_VoiceChat;
 
@@ -1115,9 +1109,7 @@ public:
 	float m_SmoothIntraTick = 0;
 	bool CheckNewInput() override;
 	bool IsSnapTapBlockedByCommunity() const;
-	void MaybeShowSnapTapBlockedPopup();
 	std::optional<CServerInfo> m_ConnectServerInfo = std::nullopt;
-	bool m_SnapTapBlockedPopupShown = false;
 	void SetConnectInfo(const NETADDR *pAddress) override;
 };
 

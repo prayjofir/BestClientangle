@@ -48,107 +48,6 @@
 
 using namespace std::chrono_literals;
 
-#if defined(CONF_FAMILY_WINDOWS)
-static constexpr const char *gs_pPortableReShadeLayerName = "VK_LAYER_reshade";
-static constexpr const char *gs_pPortableReShadeLayerDllFilename = "ReShade64.dll";
-static constexpr const char *gs_pPortableReShadeLayerManifestFilename = "ReShade64.json";
-static constexpr const char *gs_pPortableReShadeLayerDisabledManifestFilename = "ReShade64.reshade-disabled.json";
-static constexpr const char *gs_pPortableReShadeLayerDisableEnv = "DISABLE_VK_LAYER_reshade_1";
-static constexpr const char *gs_pPortableReShadeConfigFilename = "settings_BestClient.cfg";
-static constexpr const char *gs_pPortableReShadeEnabledConfigName = "bc_reshade_enabled";
-
-static bool QueryPortableReShadeConfigPath(char *pConfigPath, int ConfigPathSize)
-{
-	static constexpr const char *s_apUserDirs[] = {
-		"DDNet",
-		"Teeworlds",
-		"BestClient",
-	};
-
-	for(const char *pUserDirName : s_apUserDirs)
-	{
-		char aUserDir[IO_MAX_PATH_LENGTH];
-		if(fs_storage_path(pUserDirName, aUserDir, sizeof(aUserDir)) != 0)
-			continue;
-
-		str_format(pConfigPath, ConfigPathSize, "%s/%s", aUserDir, gs_pPortableReShadeConfigFilename);
-		if(fs_is_file(pConfigPath))
-			return true;
-	}
-
-	return false;
-}
-
-static bool QueryPortableReShadeConfigEnabled(bool &Enabled)
-{
-	char aConfigPath[IO_MAX_PATH_LENGTH];
-	if(!QueryPortableReShadeConfigPath(aConfigPath, sizeof(aConfigPath)))
-		return false;
-
-	CLineReader LineReader;
-	if(!LineReader.OpenFile(io_open(aConfigPath, IOFLAG_READ)))
-		return false;
-
-	while(const char *pLine = LineReader.Get())
-	{
-		const char *pValue = str_startswith_nocase(pLine, gs_pPortableReShadeEnabledConfigName);
-		if(pValue == nullptr)
-			continue;
-
-		pValue = str_skip_whitespaces_const(pValue);
-		char aValue[16];
-		int ValueLength = 0;
-		while(*pValue != '\0' && !str_isspace(*pValue) && ValueLength < (int)sizeof(aValue) - 1)
-			aValue[ValueLength++] = *pValue++;
-		aValue[ValueLength] = '\0';
-
-		int ParsedValue = 0;
-		if(str_toint(aValue, &ParsedValue))
-			Enabled = ParsedValue != 0;
-		return true;
-	}
-
-	return false;
-}
-
-static bool QueryPortableReShadeLayerFiles(char *pBinaryDir, int BinaryDirSize, bool &HasLayerDll, bool &HasLayerManifest, bool &HasDisabledLayerManifest)
-{
-	if(fs_executable_path(pBinaryDir, BinaryDirSize) != 0 || fs_parent_dir(pBinaryDir) != 0)
-		return false;
-
-	char aLayerDllPath[IO_MAX_PATH_LENGTH];
-	char aLayerManifestPath[IO_MAX_PATH_LENGTH];
-	char aDisabledLayerManifestPath[IO_MAX_PATH_LENGTH];
-	str_format(aLayerDllPath, sizeof(aLayerDllPath), "%s/%s", pBinaryDir, gs_pPortableReShadeLayerDllFilename);
-	str_format(aLayerManifestPath, sizeof(aLayerManifestPath), "%s/%s", pBinaryDir, gs_pPortableReShadeLayerManifestFilename);
-	str_format(aDisabledLayerManifestPath, sizeof(aDisabledLayerManifestPath), "%s/%s", pBinaryDir, gs_pPortableReShadeLayerDisabledManifestFilename);
-
-	HasLayerDll = fs_is_file(aLayerDllPath) != 0;
-	HasLayerManifest = fs_is_file(aLayerManifestPath) != 0;
-	HasDisabledLayerManifest = fs_is_file(aDisabledLayerManifestPath) != 0;
-	return true;
-}
-
-static void ConfigurePortableReShadeVulkanLayerEnvironment()
-{
-	char aBinaryDir[IO_MAX_PATH_LENGTH];
-	bool HasLayerDll = false;
-	bool HasLayerManifest = false;
-	bool HasDisabledLayerManifest = false;
-	if(!QueryPortableReShadeLayerFiles(aBinaryDir, sizeof(aBinaryDir), HasLayerDll, HasLayerManifest, HasDisabledLayerManifest))
-		return;
-
-	if(!HasLayerDll || (!HasLayerManifest && !HasDisabledLayerManifest))
-		return;
-
-	bool ReShadeEnabled = false;
-	QueryPortableReShadeConfigEnabled(ReShadeEnabled);
-
-	_putenv_s("VK_IMPLICIT_LAYER_PATH", aBinaryDir);
-	_putenv_s(gs_pPortableReShadeLayerDisableEnv, ReShadeEnabled ? "" : "1");
-	log_info("gfx/vulkan", "Configured portable ReShade Vulkan layer from '%s' (%s).", aBinaryDir, ReShadeEnabled ? "enabled" : "disabled");
-}
-#endif
 
 class CCommandProcessorFragment_Vulkan : public CCommandProcessorFragment_GLBase
 {
@@ -170,20 +69,7 @@ class CCommandProcessorFragment_Vulkan : public CCommandProcessorFragment_GLBase
 
 	[[nodiscard]] bool IsFrameBlendEnabled()
 	{
-		if(g_Config.m_BcMotionBlur == 0 || g_Config.m_BcMotionBlurStrength <= 0)
-			return false;
-
-#if defined(CONF_PLATFORM_LINUX)
-		static bool s_FrameBlendUnsupportedWarningShown = false;
-		if(!s_FrameBlendUnsupportedWarningShown)
-		{
-			log_warn("gfx/vulkan", "BestClient motion blur is temporarily disabled on Linux because it can crash the client.");
-			s_FrameBlendUnsupportedWarningShown = true;
-		}
-		return false;
-#else
-		return true;
-#endif
+		return g_Config.m_BcMotionBlur != 0 && g_Config.m_BcMotionBlurStrength > 0;
 	}
 
 	static const char *MemoryUsageName(EMemoryBlockUsage MemUsage)
@@ -2617,6 +2503,18 @@ protected:
 			return false;
 		}
 
+		// Frame blend reads the previous presented frame's history image as a texture during the
+		// render pass. That image was written by vkCmdCopyImage in a previous submission on this same
+		// queue. A plain barrier here (GPU-side) makes that copy visible to this frame's blend sampling
+		// without stalling the CPU like vkWaitForFences did. When LastPresented == CurImageIndex the
+		// fence wait above already covers it.
+		if(IsFrameBlendEnabled() && m_LastPresentedSwapChainImageIndex != std::numeric_limits<decltype(m_LastPresentedSwapChainImageIndex)>::max() && m_LastPresentedSwapChainImageIndex != m_CurImageIndex)
+		{
+			auto &HistoryImage = m_vFrameBlendImages[m_LastPresentedSwapChainImageIndex];
+			if(HistoryImage.m_Valid)
+				FrameBlendImageBarrier(CommandBuffer, HistoryImage.m_Image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		}
+
 		VkRenderPassBeginInfo RenderPassInfo{};
 		RenderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		RenderPassInfo.renderPass = m_VKRenderPass;
@@ -3803,35 +3701,13 @@ public:
 
 		std::set<std::string> ReqLayerNames = OurVKLayers();
 		vVKLayers.clear();
-#if defined(CONF_FAMILY_WINDOWS)
-		bool HasPortableReShadeLayer = false;
-#endif
 		for(const auto &LayerName : vVKInstanceLayers)
 		{
-#if defined(CONF_FAMILY_WINDOWS)
-			if(str_comp(LayerName.layerName, gs_pPortableReShadeLayerName) == 0)
-				HasPortableReShadeLayer = true;
-#endif
-
 			if(ReqLayerNames.contains(std::string(LayerName.layerName)))
 			{
 				vVKLayers.emplace_back(LayerName.layerName);
 			}
 		}
-
-#if defined(CONF_FAMILY_WINDOWS)
-		char aBinaryDir[IO_MAX_PATH_LENGTH];
-		bool HasLayerDll = false;
-		bool HasLayerManifest = false;
-		bool HasDisabledLayerManifest = false;
-		if(QueryPortableReShadeLayerFiles(aBinaryDir, sizeof(aBinaryDir), HasLayerDll, HasLayerManifest, HasDisabledLayerManifest) && HasLayerDll && HasLayerManifest)
-		{
-			if(HasPortableReShadeLayer)
-				log_info("gfx/vulkan", "Portable ReShade layer '%s' was discovered by the Vulkan loader.", gs_pPortableReShadeLayerName);
-			else
-				log_warn("gfx/vulkan", "Portable ReShade files were found in '%s', but '%s' was not enumerated by the Vulkan loader.", aBinaryDir, gs_pPortableReShadeLayerName);
-		}
-#endif
 
 		return true;
 	}
@@ -6032,10 +5908,6 @@ public:
 		m_CanvasWidth = CanvasWidth;
 		m_CanvasHeight = CanvasHeight;
 
-#if defined(CONF_FAMILY_WINDOWS)
-		ConfigurePortableReShadeVulkanLayerEnvironment();
-#endif
-
 		if(!GetVulkanExtensions(pWindow, vVKExtensions))
 			return -1;
 
@@ -6353,6 +6225,15 @@ public:
 			Barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
 			SourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
 			DestinationStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+		}
+		else if(OldLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL && NewLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+		{
+			// no layout change: only make the previous frame's copy into the history image
+			// (recorded in a previous submission on the same queue) visible to this frame's blend sampling
+			Barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			Barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			SourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+			DestinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 		}
 		else
 		{
@@ -7421,10 +7302,11 @@ public:
 		if(!FrameBlendImage.m_Valid)
 			return true;
 
-		constexpr float MaxBlendAlphaPerPass = 0.85f;
-		const float TotalBlendStrength = std::clamp(g_Config.m_BcMotionBlurStrength / 100.0f, 0.0f, 4.0f);
+		// Map 0-95 user range to 0-4.0 internal strength (matching old 400% max behavior)
+		const float TotalBlendStrength = (g_Config.m_BcMotionBlurStrength / 95.0f) * 4.0f;
 		if(TotalBlendStrength <= 0.0f)
 			return true;
+		constexpr float MaxBlendAlphaPerPass = 0.85f;
 		const int BlendPassCount = std::max(1, (int)std::ceil(TotalBlendStrength / MaxBlendAlphaPerPass));
 		const float BlendAlphaPerPass = TotalBlendStrength / (float)BlendPassCount;
 

@@ -5,6 +5,7 @@
 
 #include <base/color.h>
 #include <base/log.h>
+#include <base/math.h>
 #include <base/system.h>
 
 #include <engine/client.h>
@@ -13,6 +14,7 @@
 #include <engine/shared/config.h>
 #include <engine/shared/json.h>
 #include <engine/storage.h>
+#include <engine/updater.h>
 
 #include <game/client/components/binds.h>
 #include <game/client/components/hud_layout.h>
@@ -21,10 +23,8 @@
 #include <game/localization.h>
 #include <game/version.h>
 
-#if defined(CONF_FAMILY_WINDOWS)
-extern void BestClientTriggerReShadeToggle();
-extern void BestClientProcessReShadeToggle(IStorage *pStorage);
-#endif
+#include <game/collision.h>
+#include <game/mapitems.h>
 
 #include <algorithm>
 #include <cctype>
@@ -666,6 +666,9 @@ void CBestClient::OnShutdown()
 void CBestClient::OnReset()
 {
 	ResetHookComboState();
+	m_SpecMovedNotifyTime = -999.0f;
+	m_SpecMovedLastTick = -1;
+	m_SpecMovedActiveTick = -1;
 }
 
 void CBestClient::OnStateChange(int NewState, int OldState)
@@ -690,28 +693,34 @@ void CBestClient::OnRender()
 		}
 	}
 
+#if defined(CONF_AUTOUPDATE)
+	if(m_bAutoUpdateArmed)
+	{
+		const IUpdater::EUpdaterState State = Updater()->GetCurrentState();
+		if(NeedUpdate() && State == IUpdater::CLEAN)
+		{
+			m_bAutoUpdateArmed = false;
+			Updater()->InitiateUpdate();
+		}
+		else if(!NeedUpdate())
+		{
+			m_bAutoUpdateArmed = false;
+		}
+	}
+	if(g_Config.m_BcAutoUpdate && Updater()->GetCurrentState() == IUpdater::NEED_RESTART)
+	{
+		Updater()->ApplyUpdateAndRestart();
+	}
+#endif
+
 	if(HasHookComboWork())
 		UpdateHookCombo();
 
-#if defined(CONF_FAMILY_WINDOWS)
-	BestClientProcessReShadeToggle(GameClient()->Storage());
-#endif
+	UpdateSpecMoved();
 }
 
 bool CBestClient::OnInput(const IInput::CEvent &Event)
 {
-#if defined(CONF_FAMILY_WINDOWS)
-	if(Event.m_Flags & IInput::FLAG_PRESS)
-	{
-		const int ModifierMask = CBinds::GetModifierMask(Input()) & ~CBinds::GetModifierMaskOfKey(Event.m_Key);
-		const char *pBind = GameClient()->m_Binds.Get(Event.m_Key, ModifierMask);
-		if(str_comp(pBind, "BC_reshade_toggle_effects") == 0)
-		{
-			BestClientTriggerReShadeToggle();
-			return true;
-		}
-	}
-#endif
 	return false;
 }
 
@@ -977,6 +986,91 @@ void CBestClient::SaveRollback()
 	Console()->ExecuteLine(aCommand, IConsole::CLIENT_ID_UNSPECIFIED);
 }
 
+void CBestClient::UpdateSpecMoved()
+{
+	if(Client()->State() != IClient::STATE_ONLINE)
+	{
+		m_SpecMovedActiveTick = -1;
+		return;
+	}
+
+	if(!GameClient()->m_Snap.m_SpecInfo.m_Active)
+	{
+		m_SpecMovedActiveTick = -1;
+		return;
+	}
+
+	const int LocalId = GameClient()->m_Snap.m_LocalClientId;
+	if(LocalId < 0 || LocalId >= MAX_CLIENTS)
+	{
+		m_SpecMovedActiveTick = -1;
+		return;
+	}
+
+	const auto &CharInfo = GameClient()->m_Snap.m_aCharacters[LocalId];
+	if(!CharInfo.m_Active)
+	{
+		m_SpecMovedActiveTick = -1;
+		return;
+	}
+
+	const int CurrentTick = Client()->GameTick(0);
+
+	if(m_SpecMovedActiveTick < 0)
+		m_SpecMovedActiveTick = CurrentTick;
+
+	if(CurrentTick <= m_SpecMovedActiveTick + 3)
+		return;
+
+	if(m_SpecMovedLastTick == CurrentTick)
+		return;
+	m_SpecMovedLastTick = CurrentTick;
+
+	if(CharInfo.m_Cur.m_X != CharInfo.m_Prev.m_X || CharInfo.m_Cur.m_Y != CharInfo.m_Prev.m_Y)
+	{
+		constexpr float Duration = 2.5f;
+		const float Age = Client()->LocalTime() - m_SpecMovedNotifyTime;
+		if(Age < 0.0f || Age >= Duration)
+			m_SpecMovedNotifyTime = Client()->LocalTime();
+	}
+}
+
+void CBestClient::RenderSpecMoved()
+{
+	if(!g_Config.m_BcSpecMovedNotify)
+		return;
+
+	constexpr float Duration = 2.5f;
+	constexpr float FadeIn = 0.12f;
+	constexpr float FadeOut = 0.5f;
+
+	const float Now = Client()->LocalTime();
+	const float Age = Now - m_SpecMovedNotifyTime;
+	if(Age < 0.0f || Age > Duration)
+		return;
+
+	if(GameClient()->m_Scoreboard.IsActive() || GameClient()->m_Menus.IsActive())
+		return;
+
+	const float In = std::clamp(Age / FadeIn, 0.0f, 1.0f);
+	const float Out = Age > Duration - FadeOut ? std::clamp((Duration - Age) / FadeOut, 0.0f, 1.0f) : 1.0f;
+	const float Alpha = In * Out;
+	if(Alpha <= 0.0f)
+		return;
+
+	const float Width = 300.0f * Graphics()->ScreenAspect();
+	constexpr float Height = HudLayout::CANVAS_HEIGHT;
+	constexpr float FontSize = 9.0f;
+	const char *pText = "moved in game";
+	const float TextW = TextRender()->TextWidth(FontSize, pText, -1, -1.0f);
+	const float X = Width * 0.5f - TextW * 0.5f;
+	const float Y = Height * 0.58f;
+
+	TextRender()->TextColor(1.0f, 0.15f, 0.15f, Alpha);
+	TextRender()->Text(X, Y, FontSize, pText, -1.0f);
+	TextRender()->TextColor(TextRender()->DefaultTextColor());
+}
+
 void CBestClient::RenderHookCombo(bool ForcePreview)
 {
 	if(!ForcePreview && IsComponentDisabled(COMPONENT_GAMEPLAY_HOOK_COMBO))
@@ -1212,18 +1306,21 @@ void CBestClient::ConSaveRollback(IConsole::IResult *pResult, void *pUserData)
 	static_cast<CBestClient *>(pUserData)->SaveRollback();
 }
 
-void CBestClient::ConToggleReShadeEffects(IConsole::IResult *pResult, void *pUserData)
-{
-	(void)pResult;
-	(void)pUserData;
-#if defined(CONF_FAMILY_WINDOWS)
-	BestClientTriggerReShadeToggle();
-#endif
-}
-
 bool CBestClient::NeedUpdate()
 {
 	return str_comp(m_aVersionStr, "0") != 0;
+}
+
+bool CBestClient::IsAutoUpdating() const
+{
+#if defined(CONF_AUTOUPDATE)
+	if(!g_Config.m_BcAutoUpdate)
+		return false;
+	const IUpdater::EUpdaterState State = Updater()->GetCurrentState();
+	return State >= IUpdater::GETTING_MANIFEST && State < IUpdater::NEED_RESTART;
+#else
+	return false;
+#endif
 }
 
 void CBestClient::ResetBestClientInfoTask()
@@ -1271,6 +1368,9 @@ void CBestClient::FinishBestClientInfo()
 	}
 
 	m_FetchedBestClientInfo = true;
+#if defined(CONF_AUTOUPDATE)
+	m_bAutoUpdateArmed = g_Config.m_BcAutoUpdate != 0;
+#endif
 	json_value_free(pJson);
 }
 
@@ -1283,5 +1383,4 @@ void CBestClient::OnConsoleInit()
 	Console()->Register("BC_deepfly_toggle", "", CFGFLAG_CLIENT, ConToggleDeepfly, this, "Deep fly toggle");
 	Console()->Register("BC_cinematic_camera_toggle", "", CFGFLAG_CLIENT, ConToggleCinematicCamera, this, "Toggle cinematic spectator camera");
 	Console()->Register("BC_save_rollback", "", CFGFLAG_CLIENT, ConSaveRollback, this, "Save the last configured seconds as a rollback demo");
-	Console()->Register("BC_reshade_toggle_effects", "", CFGFLAG_CLIENT, ConToggleReShadeEffects, this, "Toggle all added ReShade effects on/off");
 }

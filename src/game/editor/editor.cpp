@@ -2987,7 +2987,9 @@ void CEditor::DoMapEditor(CUIRect View)
 		const std::shared_ptr<CLayer> pSelectedLayer = Map()->SelectedLayer(0);
 		if(pSelectedLayer != nullptr && pSelectedLayer->m_Type == LAYERTYPE_QUADS)
 		{
+			Ui()->ClipEnable(&View);
 			DoQuadEnvelopes(static_cast<const CLayerQuads *>(pSelectedLayer.get()));
+			Ui()->ClipDisable();
 		}
 		m_ActiveEnvelopePreview = EEnvelopePreview::NONE;
 	}
@@ -3082,6 +3084,7 @@ void CEditor::DoColorPickerButton(const void *pId, const CUIRect *pRect, ColorRG
 		m_ColorPickerPopupContext.m_HslaColor = color_cast<ColorHSLA>(Color);
 		m_ColorPickerPopupContext.m_HsvaColor = color_cast<ColorHSVA>(m_ColorPickerPopupContext.m_HslaColor);
 		m_ColorPickerPopupContext.m_Alpha = true;
+		m_ColorPickerPopupContext.m_ShowAlphaSlider = false;
 		m_pColorPickerPopupActiveId = pId;
 		Ui()->ShowPopupColorPicker(Ui()->MouseX(), Ui()->MouseY(), &m_ColorPickerPopupContext);
 	}
@@ -5337,9 +5340,12 @@ void CEditor::RenderEnvelopeEditor(CUIRect View)
 						Final.w = 4.0f;
 						Final.h = 4.0f;
 
+						const bool PointInView = Final.y + Final.h >= View.y && Final.y <= View.y + View.h &&
+							Final.x + Final.w >= View.x && Final.x <= View.x + View.w;
+
 						const void *pId = &pEnvelope->m_vPoints[i].m_aValues[c];
 
-						if(Map()->IsEnvPointSelected(i, c))
+						if(PointInView && Map()->IsEnvPointSelected(i, c))
 						{
 							Graphics()->SetColor(1, 1, 1, 1);
 							CUIRect Background = {
@@ -5521,8 +5527,11 @@ void CEditor::RenderEnvelopeEditor(CUIRect View)
 						else
 							Graphics()->SetColor(aColors[c].r, aColors[c].g, aColors[c].b, 1.0f);
 
-						IGraphics::CQuadItem QuadItem(Final.x, Final.y, Final.w, Final.h);
-						Graphics()->QuadsDrawTL(&QuadItem, 1);
+						if(PointInView)
+						{
+							IGraphics::CQuadItem QuadItem(Final.x, Final.y, Final.w, Final.h);
+							Graphics()->QuadsDrawTL(&QuadItem, 1);
+						}
 					}
 
 					// tangent handles for bezier curves
