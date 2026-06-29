@@ -34,14 +34,14 @@ jobs:
         include:
         - name: linux
           os: ubuntu-24.04
-          cmake-args: -G Ninja -DPREFER_BUNDLED_LIBS=ON
+          cmake-args: -G Ninja -DCMAKE_BUILD_TYPE=Release -DPREFER_BUNDLED_LIBS=ON -DDISCORD_DYNAMIC=ON
           cmake-init-env: CXXFLAGS="-Werror -Wno-unused-function"
           package-file: "*-linux_x86_64.tar.xz"
           artifact-name: release-linux
           asset-name: BestClient-linux.tar.xz
         - name: windows
           os: windows-latest
-          cmake-args: -A x64 -DEXCEPTION_HANDLING=ON -DVULKAN=ON
+          cmake-args: -A x64 -DEXCEPTION_HANDLING=ON -DVULKAN=ON -DDISCORD=ON -DPREFER_BUNDLED_LIBS=ON
           cmake-init-env: CXXFLAGS=/WX LDFLAGS="/WX /IGNORE:4098"
           package-file: "*-win64.zip"
           artifact-name: release-windows
