@@ -1,0 +1,96 @@
+===============================================
+  BestClientangle - Windows Build Talimatları
+===============================================
+
+Arch Linux'tan Windows'a geçtikten sonra yapman gerekenler:
+
+
+1. GEREKLİ PROGRAMLARI KUR
+===========================
+
+a) Visual Studio 2022 (Community, ücretsiz)
+   https://visualstudio.microsoft.com/downloads/
+   -> Kurulumda "Desktop development with C++" workload'unu seç
+
+b) CMake
+   https://cmake.org/download/
+   -> "Add CMake to the system PATH" seçeneğini işaretle
+
+c) Rust
+   https://rustup.rs/
+   -> rustup-init.exe indir ve çalıştır
+   -> Varsayılan ayarlarla kur
+
+d) Python 3
+   https://www.python.org/downloads/
+   -> "Add Python to PATH" seçeneğini işaretle
+
+e) Git
+   https://git-scm.com/download/win
+   -> Varsayılan ayarlarla kur
+
+
+2. PROJEYİ KLONLA
+==================
+
+PowerShell veya CMD aç:
+
+   git clone --recursive https://github.com/prayjofir/BestClientangle.git
+   cd BestClientangle
+
+
+3. BUILD YAP
+=============
+
+   mkdir build
+   cd build
+   cmake .. -A x64 -DDISCORD=ON -DPREFER_BUNDLED_LIBS=ON
+   cmake --build . --config Release --target DDNet
+
+Build bitince şu dosyalar oluşacak:
+   build/Release/DDNet.exe
+   build/Release/discord_game_sdk.dll  (otomatik kopyalanır)
+
+
+4. ÇALIŞTIR
+============
+
+   .\Release\DDNet.exe
+
+Discord açıkken oyunu çalıştırınca Discord'da BestClient aktivitesi görünecek.
+
+
+5. DISCORD RPC KONTROL
+========================
+
+- Oyun içinde Settings -> TClient -> Info -> Integration -> Enable Discord RPC = ON
+- Discord'da aktivite görünmüyorsa:
+  * Discord'u yeniden başlat
+  * Başka bir uygulamanın RPC'si aktifse onu kapat
+  * Oyunu yeniden başlat
+
+
+6. BIND AYARLARI (opsiyonel)
+=============================
+
+Konsola yaz (F1):
+
+   bc_aim_angle -214
+   bc_aim_angle2 -590
+   bc_aim_angle_speed 25
+   bind 2 "+left; +hook; +aim_angle"
+   bind 1 "+right; +hook; +aim_angle2"
+
+
+7. RELEASE OLUŞTURMA (opsiyonel)
+==================================
+
+GitHub'da release oluşturmak istersen:
+   1. https://github.com/prayjofir/BestClientangle/releases/new
+   2. Tag: v1.9.2 (veya sonraki versiyon)
+   3. "Publish release" tıkla
+   4. GitHub Actions otomatik olarak Windows + Linux + Android build yapacak
+
+
+NOT: Proje v1.9.1 sürümüne güncellendi (29 Haziran 2026).
+     Özel özellikler korundu: aim angle bind, Discord RPC (App ID: 1444576875774083133)
